@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --botanical-50: #f0fdf4;
+  --botanical-500: #22c55e;
+  --botanical-600: #16a34a;
+  --botanical-700: #15803d;
+  --botanical-800: #166534;
+
+  --earth-50: #faf8f5;
+  --earth-600: #7d6444;
+  --earth-700: #5f4d36;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: linear-gradient(to bottom, var(--botanical-50), var(--earth-50));
+  min-height: 100vh;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

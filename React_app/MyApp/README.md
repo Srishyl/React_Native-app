@@ -1,56 +1,60 @@
-# Welcome to your Expo app 👋
+# GramHealth - Rural Healthcare Reimagined 🌍
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+GramHealth is a rural healthcare application built with **React Native** and **Expo**. It aims to empower remote communities with easy access to teleconsultations, medicine delivery tracking, and offline medical records.
 
-## Get started
+## Features ✨
+*   📱 **Teleconsultation:** Low-bandwidth video/voice call UI tailored for rural connectivities.
+*   💊 **Medicine Delivery:** Track prescription drop-offs directly to village centers.
+*   📁 **Offline Records:** Health data syncs seamlessly when a connection drops and restores.
+*   🚑 **Emergency Connect:** One-tap SOS dispatch for rural ambulance services and mobile clinics.
+*   ✨ **Modern UI:** Built with **Expo Router**, **React Native Reanimated**, and customized theming for a premium feel.
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## 🚀 Getting Started
 
-2. Start the app
+To run this project locally, you need [Node.js](https://nodejs.org/) installed on your machine.
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### 1. Install dependencies
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2. Start the development server
 
-### Other setup steps
+You can start the project using Expo CLI:
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+npm start
+```
+*   `npx expo start` will open the Metro bundler in your terminal.
+*   You can then press:
+    *   **`a`** to open on an Android Emulator
+    *   **`i`** to open on an iOS Simulator (macOS only)
+    *   **`w`** to open on the Web browser
+    *   Or scan the **QR code** with the Expo Go app on your physical device.
 
-## Learn more
+### 3. Scripts
 
-To learn more about developing your project with Expo, look at the following resources:
+*   `npm run android` - Starts the app on Android.
+*   `npm run ios` - Starts the app on iOS.
+*   `npm run web` - Starts the app on the web.
+*   `npm run lint` - Runs ESLint to check for code issues.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## 📂 Project Structure
 
-## Join the community
+*   **/src/app** - The main screens and routing (Expo Router).
+    *   `_layout.tsx`: Root layout and Stack setup.
+    *   `index.tsx`: The main Landing Page.
+*   **/src/components** - Reusable UI components.
+*   **/assets** - Images, fonts, and icons.
 
-Join our community of developers creating universal apps.
+## 🛠️ Built With
+*   [React Native](https://reactnative.dev/)
+*   [Expo](https://expo.dev/)
+*   [Expo Router](https://docs.expo.dev/router/introduction/)
+*   [React Native Reanimated](https://docs.swmansion.com/react-native-reanimated/)
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+---
+*Bridging the gap for a healthier tomorrow.*

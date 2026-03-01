@@ -5,6 +5,7 @@ import Animated, { FadeInDown, FadeInUp, FadeIn } from 'react-native-reanimated'
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Image } from 'expo-image';
+import { Link } from 'expo-router';
 
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
@@ -62,6 +63,10 @@ export default function HomeScreen() {
               </View>
             </Animated.View>
           </View>
+
+           <Link href="/testdb" style={{ marginTop: 20 }}>
+              Go To DB Test
+            </Link>
 
           {/* Features Grid */}
           <Animated.View entering={FadeInUp.duration(800).delay(600)} style={styles.featuresSection}>

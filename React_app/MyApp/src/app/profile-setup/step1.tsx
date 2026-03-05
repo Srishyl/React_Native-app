@@ -135,6 +135,7 @@ export default function Step1Screen() {
         }
 
         setSaving(true);
+        console.log('DEBUG: Step 1 handleNext - saving profile for phone:', phone);
         try {
             const now = new Date().toISOString();
             await db.runAsync(
@@ -165,6 +166,7 @@ export default function Step1Screen() {
                     now,
                 ]
             );
+            console.log('DEBUG: Step 1 success. Navigating to Step 2.');
             router.push({
                 pathname: '/profile-setup/step2' as any,
                 params: { phone: phone ?? '' },

@@ -9,7 +9,6 @@ import {
     Platform,
     Alert,
 } from 'react-native';
-import { Text } from '@/components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Image } from 'expo-image';

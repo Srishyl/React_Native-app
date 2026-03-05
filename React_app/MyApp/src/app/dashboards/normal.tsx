@@ -1,0 +1,354 @@
+import React from 'react';
+import {
+    View,
+    Text,
+    TouchableOpacity,
+    StyleSheet,
+    ScrollView,
+    StatusBar,
+    Platform,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { Image } from 'expo-image';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import db from '../../database/db';
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+export default function NormalDashboard() {
+    const router = useRouter();
+    const { phone } = useLocalSearchParams<{ phone: string }>();
+    const [patientName, setPatientName] = React.useState('Patient');
+
+    React.useEffect(() => {
+        async function loadUser() {
+            if (!phone) return;
+            try {
+                const row: any = await db.getFirstAsync(
+                    'SELECT full_name FROM patient_profiles WHERE phone = ?',
+                    [phone]
+                );
+                if (row && row.full_name) {
+                    setPatientName(row.full_name.split(' ')[0]);
+                }
+            } catch (err) {
+                console.error('Failed to load user info:', err);
+            }
+        }
+        loadUser();
+    }, [phone]);
+
+    return (
+        <View style={styles.container}>
+            <StatusBar barStyle="light-content" backgroundColor="#0D1B2E" />
+            <SafeAreaView style={styles.safeArea} edges={['top']}>
+                <ScrollView
+                    style={styles.scroll}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* ── Top Header Bar ── */}
+                    <Animated.View entering={FadeInDown.duration(400)} style={styles.topBar}>
+                        <TouchableOpacity style={styles.menuBtn}>
+                            <Text style={styles.menuIcon}>≡</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.phcId}>PHC-KA-2024-483921</Text>
+                        <TouchableOpacity style={styles.qrBtn}>
+                            <Text style={styles.qrIcon}>📱</Text>
+                        </TouchableOpacity>
+                    </Animated.View>
+
+                    {/* ── Greeting ── */}
+                    <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.greetingSection}>
+                        <Text style={styles.greetingText}>Good morning,{'\n'}{patientName} 👋</Text>
+                        <Text style={styles.greetingSub}>How are you feeling today?</Text>
+                    </Animated.View>
+
+                    {/* ── Quick Actions Grid ── */}
+                    <Animated.View entering={FadeInUp.duration(500).delay(200)} style={styles.grid}>
+                        {/* Action Card 1: Check Symptoms */}
+                        <TouchableOpacity
+                            style={styles.actionCard}
+                            activeOpacity={0.8}
+                            onPress={() => router.push('/symptom-triage' as any)}
+                        >
+                            <View style={[styles.iconBox, { backgroundColor: '#E8F1FE' }]}>
+                                <Image
+                                    source={require('../../../assets/icon_check_symptoms.png')}
+                                    style={styles.actionImg}
+                                    contentFit="contain"
+                                />
+                            </View>
+                            <Text style={styles.actionText}>Check{'\n'}Symptoms</Text>
+                        </TouchableOpacity>
+
+                        {/* Action Card 2: Find PHC */}
+                        <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
+                            <View style={[styles.iconBox, { backgroundColor: '#E8F1FE' }]}>
+                                <Image
+                                    source={require('../../../assets/icon_find_phc.png')}
+                                    style={styles.actionImg}
+                                    contentFit="contain"
+                                />
+                            </View>
+                            <Text style={styles.actionText}>Find PHC</Text>
+                        </TouchableOpacity>
+
+                        {/* Action Card 3: My Records */}
+                        <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
+                            <View style={[styles.iconBox, { backgroundColor: '#E8F1FE' }]}>
+                                <Image
+                                    source={require('../../../assets/icon_my_records.png')}
+                                    style={styles.actionImg}
+                                    contentFit="contain"
+                                />
+                            </View>
+                            <Text style={styles.actionText}>My Records</Text>
+                        </TouchableOpacity>
+
+                        {/* Action Card 4: Medicines */}
+                        <TouchableOpacity
+                            style={styles.actionCard}
+                            activeOpacity={0.8}
+                            onPress={() => router.push('/drug-recommendation' as any)}
+                        >
+                            <View style={[styles.iconBox, { backgroundColor: '#E8F1FE' }]}>
+                                <Image
+                                    source={require('../../../assets/icon_medicines.png')}
+                                    style={styles.actionImg}
+                                    contentFit="contain"
+                                />
+                            </View>
+                            <Text style={styles.actionText}>Medicines</Text>
+                        </TouchableOpacity>
+                    </Animated.View>
+
+                    {/* ── Nearest PHC ── */}
+                    <Animated.View entering={FadeInUp.duration(500).delay(300)} style={styles.section}>
+                        <Text style={styles.sectionTitle}>Nearest PHC</Text>
+                        <View style={styles.phcCard}>
+                            <View style={styles.phcHeaderRow}>
+                                <Text style={styles.phcName}>PHC Whitefield</Text>
+                                <View style={styles.openBadge}>
+                                    <Text style={styles.openText}>OPEN</Text>
+                                </View>
+                            </View>
+                            <Text style={styles.phcDistance}>📍 1.2 km away</Text>
+
+                            <View style={styles.phcDetails}>
+                                <Text style={styles.phcDetailItem}>🟢 12 patients waiting</Text>
+                                <Text style={styles.phcDetailItem}>🩺 1 doctor available</Text>
+                            </View>
+
+                            <TouchableOpacity style={styles.bookTokenBtn} activeOpacity={0.85}>
+                                <Text style={styles.bookTokenText}>🎟️ Book Token</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </Animated.View>
+
+                    {/* ── Your Reminders Today ── */}
+                    <Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.section}>
+                        <Text style={styles.sectionTitle}>Your Reminders Today</Text>
+                        <View style={styles.remindersCard}>
+
+                            {/* Reminder 1 */}
+                            <View style={styles.reminderRow}>
+                                <View style={styles.reminderIconDone}>
+                                    <Text style={styles.reminderCheck}>✓</Text>
+                                </View>
+                                <View style={styles.reminderInfo}>
+                                    <Text style={styles.reminderTitle}>Pill reminder at 8am</Text>
+                                    <Text style={styles.reminderTime}>Taken at 08:05 AM</Text>
+                                </View>
+                                <Text style={styles.statusDone}>Done</Text>
+                            </View>
+
+                            <View style={styles.divider} />
+
+                            {/* Reminder 2 */}
+                            <View style={styles.reminderRow}>
+                                <View style={styles.reminderIconUrgent}>
+                                    <Text style={styles.reminderAlert}>*</Text>
+                                </View>
+                                <View style={styles.reminderInfo}>
+                                    <Text style={styles.reminderTitle}>BP check due</Text>
+                                    <Text style={styles.reminderUrgentText}>Urgent Action Required</Text>
+                                </View>
+                                <TouchableOpacity style={styles.startBtn} activeOpacity={0.8}>
+                                    <Text style={styles.startBtnText}>Start</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                        </View>
+                    </Animated.View>
+
+                    <View style={{ height: 100 }} />
+                </ScrollView>
+
+                {/* ── Bottom Navigation Bar ── */}
+                <View style={styles.bottomNav}>
+                    <TouchableOpacity style={styles.navItem} activeOpacity={1}>
+                        <Text style={styles.navIconActive}>⌂</Text>
+                        <Text style={styles.navTextActive}>Home</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={() => router.push('/drug-recommendation' as any)}>
+                        <Text style={styles.navIcon}>📄</Text>
+                        <Text style={styles.navText}>Records</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+                        <Text style={styles.navIcon}>🔔</Text>
+                        <Text style={styles.navText}>Alerts</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+                        <Text style={styles.navIcon}>👤</Text>
+                        <Text style={styles.navText}>Profile</Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        </View>
+    );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: '#0D1522' },
+    safeArea: { flex: 1 },
+    scroll: { flex: 1 },
+    scrollContent: { paddingHorizontal: 20, paddingTop: 10 },
+
+    // Header
+    topBar: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 28,
+    },
+    menuBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#1E293B',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    menuIcon: { color: '#3D8EFF', fontSize: 24, fontWeight: '700', marginTop: -4 },
+    phcId: { color: '#F8FAFC', fontSize: 16, fontWeight: '700' },
+    qrBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#1E293B',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    qrIcon: { fontSize: 20 },
+
+    // Greeting
+    greetingSection: { marginBottom: 32 },
+    greetingText: { color: '#FFFFFF', fontSize: 32, fontWeight: '800', lineHeight: 40, letterSpacing: -0.5 },
+    greetingSub: { color: '#94A3B8', fontSize: 15, marginTop: 8 },
+
+    // Grid
+    grid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 16,
+        justifyContent: 'space-between',
+        marginBottom: 36,
+    },
+    actionCard: {
+        width: '47%',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 24,
+        padding: 20,
+        alignItems: 'center',
+    },
+    iconBox: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    actionImg: { width: 32, height: 32 },
+    actionText: {
+        color: '#3D8EFF',
+        fontSize: 15,
+        fontWeight: '700',
+        textAlign: 'center',
+        lineHeight: 20,
+    },
+
+    // Sections
+    section: { marginBottom: 36 },
+    sectionTitle: { color: '#F8FAFC', fontSize: 18, fontWeight: '700', marginBottom: 16 },
+
+    // PHC Card
+    phcCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24 },
+    phcHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+    phcName: { color: '#0F172A', fontSize: 18, fontWeight: '800' },
+    openBadge: { backgroundColor: '#DCFCE7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+    openText: { color: '#166534', fontSize: 11, fontWeight: '800' },
+    phcDistance: { color: '#64748B', fontSize: 14, marginBottom: 16 },
+    phcDetails: { marginBottom: 20, gap: 8 },
+    phcDetailItem: { color: '#334155', fontSize: 14, fontWeight: '500' },
+    bookTokenBtn: {
+        backgroundColor: '#3D8EFF',
+        paddingVertical: 16,
+        borderRadius: 16,
+        alignItems: 'center',
+    },
+    bookTokenText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+
+    // Reminders Card
+    remindersCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20 },
+    reminderRow: { flexDirection: 'row', alignItems: 'center' },
+    reminderIconDone: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#DCFCE7',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    reminderCheck: { color: '#16A34A', fontSize: 24, fontWeight: '800' },
+    reminderTitle: { color: '#0F172A', fontSize: 16, fontWeight: '700', marginBottom: 4 },
+    reminderTime: { color: '#64748B', fontSize: 13 },
+    statusDone: { color: '#16A34A', fontSize: 14, fontWeight: '700' },
+
+    divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 16 },
+
+    reminderIconUrgent: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#FEE2E2',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    reminderAlert: { color: '#DC2626', fontSize: 28, fontWeight: '800', marginTop: 10 },
+    reminderInfo: { flex: 1 },
+    reminderUrgentText: { color: '#DC2626', fontSize: 12, fontWeight: '700' },
+    startBtn: { backgroundColor: '#E0F2FE', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+    startBtnText: { color: '#0284C7', fontSize: 14, fontWeight: '700' },
+
+    // Bottom Nav
+    bottomNav: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 30,
+        paddingTop: 16,
+        paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+        backgroundColor: '#111A2C',
+        borderTopWidth: 1,
+        borderTopColor: '#1E293B',
+    },
+    navItem: { alignItems: 'center', gap: 4 },
+    navIconActive: { color: '#3D8EFF', fontSize: 26 },
+    navTextActive: { color: '#3D8EFF', fontSize: 11, fontWeight: '700' },
+    navIcon: { color: '#64748B', fontSize: 22 },
+    navText: { color: '#64748B', fontSize: 11, fontWeight: '600' },
+});

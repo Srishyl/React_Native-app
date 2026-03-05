@@ -179,6 +179,7 @@ export const initializeDatabase = async () => {
     try { await db.execAsync(`ALTER TABLE patient_profiles ADD COLUMN verification_method TEXT;`); } catch (e) { }
     try { await db.execAsync(`ALTER TABLE patient_profiles ADD COLUMN pregnancy_doc_type TEXT;`); } catch (e) { }
     try { await db.execAsync(`ALTER TABLE patient_profiles ADD COLUMN pregnancy_doc_uri TEXT;`); } catch (e) { }
+    try { await db.execAsync(`ALTER TABLE patient_profiles ADD COLUMN qr_code_data TEXT;`); } catch (e) { }
 
     console.log("Database initialized successfully");
   } catch (error) {

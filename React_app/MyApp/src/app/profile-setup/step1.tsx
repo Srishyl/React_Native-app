@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { Text, TextInput } from '@/components/AppText';
 
 import {

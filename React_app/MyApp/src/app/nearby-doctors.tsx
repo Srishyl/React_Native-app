@@ -27,7 +27,7 @@ export default function NearbyDoctorsScreen() {
                         <Text style={styles.backText}>← Back</Text>
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Nearby Doctors</Text>
-                    <View style={{ width: 60 }} /> {/* Spacer */}
+                    <View style={{ width: 60 }} />
                 </Animated.View>
 
                 {/* ── Title ── */}

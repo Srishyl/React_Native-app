@@ -1,19 +1,11 @@
 import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    StyleSheet,
-    KeyboardAvoidingView,
-    Platform,
-    StatusBar,
-    ActivityIndicator,
-    Alert,
-} from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
+
+import { View, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, StatusBar, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
+import * as Location from 'expo-location';
 import db from '../database/db';
 
 type Step = 'phone' | 'otp';
@@ -85,7 +77,9 @@ export default function PatientLoginScreen() {
         try {
             if (otp.trim() === generatedOtp) {
                 // Check if user is returning
-                const cleanPhone = phone.replace(/\\D/g, '');
+                const cleanPhone = phone.replace(/\D/g, '');
+                console.log('DEBUG: cleanPhone ->', cleanPhone);
+
                 const returningUser: any = await db.getFirstAsync(
                     'SELECT profile_complete, care_mode FROM patient_profiles WHERE phone = ?',
                     [cleanPhone]
@@ -99,7 +93,25 @@ export default function PatientLoginScreen() {
                         returningUser.profile_complete === true ||
                         returningUser.care_mode != null);
 
+                // Silently update location if they granted permission, otherwise just proceed
+                try {
+                    const { status } = await Location.requestForegroundPermissionsAsync();
+                    if (status === 'granted') {
+                        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                        const lat = loc.coords.latitude;
+                        const lon = loc.coords.longitude;
+                        await db.runAsync(
+                            'UPDATE patient_profiles SET latitude = ?, longitude = ? WHERE phone = ?',
+                            [lat, lon, cleanPhone]
+                        );
+                        console.log('Updated returning patient location:', lat, lon);
+                    }
+                } catch (e) {
+                    console.error('Failed to update patient location on login:', e);
+                }
+
                 if (isProfileComplete) {
+                    console.log('DEBUG: User profile complete. Redirecting to dashboard.');
                     // Navigate to respective dashboard directly
                     if (returningUser.care_mode === 'pregnancy') {
                         router.replace({
@@ -113,6 +125,7 @@ export default function PatientLoginScreen() {
                         });
                     }
                 } else {
+                    console.log('DEBUG: User profile incomplete or new user. Redirecting to Profile Setup Step 1.');
                     // OTP verified — navigate to 3-step profile setup for new or incomplete user
                     router.replace({
                         pathname: '/profile-setup/step1' as any,

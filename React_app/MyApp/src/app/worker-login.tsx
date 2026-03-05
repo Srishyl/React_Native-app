@@ -1,39 +1,102 @@
 import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    StyleSheet,
-    KeyboardAvoidingView,
-    Platform,
-    StatusBar,
-    ActivityIndicator,
-    Alert,
-} from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
+
+import { View, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, StatusBar, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
+import * as Location from 'expo-location';
+
+const VALID_WORKERS = [
+    { id: 'WORKER01', pass: 'pass123' },
+    { id: 'WORKER02', pass: 'pass123' },
+    { id: 'WORKER03', pass: 'pass123' },
+    { id: 'WORKER04', pass: 'pass123' },
+    { id: 'WORKER05', pass: 'pass123' },
+    { id: 'WORKER06', pass: 'pass123' },
+    { id: 'WORKER07', pass: 'pass123' },
+    { id: 'WORKER08', pass: 'pass123' },
+    { id: 'WORKER09', pass: 'pass123' },
+    { id: 'WORKER10', pass: 'pass123' },
+];
 
 export default function WorkerLoginScreen() {
     const router = useRouter();
     const [workerId, setWorkerId] = useState('');
     const [password, setPassword] = useState('');
+    const [name, setName] = useState('');
+    const [role, setRole] = useState('');
     const [loading, setLoading] = useState(false);
     const [showPass, setShowPass] = useState(false);
+    const [errorMsg, setErrorMsg] = useState('');
 
-    const handleLogin = () => {
-        if (!workerId.trim() || !password.trim()) {
-            Alert.alert('Missing Fields', 'Please enter your Worker ID and password.');
+    const handleLogin = async () => {
+        setErrorMsg('');
+        if (!name.trim()) {
+            setErrorMsg('Please enter your name.');
             return;
         }
+        if (!role) {
+            setErrorMsg('Please select your role.');
+            return;
+        }
+        if (!workerId.trim() || !password.trim()) {
+            setErrorMsg('Please enter your Worker ID and password.');
+            return;
+        }
+
+        const isValid = VALID_WORKERS.some(
+            w => w.id === workerId.trim().toUpperCase() && w.pass === password
+        );
+
+        if (!isValid) {
+            setErrorMsg('Invalid Worker ID or password.');
+            return;
+        }
+
         setLoading(true);
-        // Simulate auth
-        setTimeout(() => {
-            setLoading(false);
-            // Navigate to health worker dashboard
-            router.replace('/drug-recommendation' as any);
-        }, 1200);
+
+        // Detect worker's location and get their pincode via reverse geocoding
+        let workerPincode = '';
+        let workerLat = '';
+        let workerLon = '';
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status === 'granted') {
+                const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                workerLat = String(loc.coords.latitude);
+                workerLon = String(loc.coords.longitude);
+
+                const MAPBOX_API_KEY = process.env.EXPO_PUBLIC_MAPBOX_API_KEY;
+                if (MAPBOX_API_KEY) {
+                    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${loc.coords.longitude},${loc.coords.latitude}.json?access_token=${MAPBOX_API_KEY}`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    if (data?.features) {
+                        const postcodeFeature = data.features.find((f: any) => f.place_type.includes('postcode'));
+                        if (postcodeFeature) {
+                            workerPincode = postcodeFeature.text;
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Worker location detection failed:', e);
+        }
+
+        setLoading(false);
+        // Navigate to health worker dashboard with location params
+        router.replace({
+            pathname: '/patient-list' as any,
+            params: {
+                workerName: name.trim(),
+                workerRole: role,
+                workerId: workerId.trim().toUpperCase(),
+                workerPincode,
+                workerLat,
+                workerLon,
+            }
+        });
     };
 
     return (
@@ -49,10 +112,14 @@ export default function WorkerLoginScreen() {
                         <Text style={styles.backText}>← Back</Text>
                     </TouchableOpacity>
 
-                    <Animated.View entering={FadeInDown.duration(600)} style={styles.content}>
+                    <Animated.ScrollView
+                        entering={FadeInDown.duration(600)}
+                        contentContainerStyle={styles.scrollContent}
+                        showsVerticalScrollIndicator={false}
+                    >
                         {/* Icon */}
                         <View style={styles.iconWrapper}>
-                            <Text style={styles.iconEmoji}>👩‍⚕️</Text>
+                            <Text style={styles.iconEmoji}>🩺</Text>
                         </View>
 
                         <Text style={styles.title}>Health Worker Login</Text>
@@ -60,7 +127,40 @@ export default function WorkerLoginScreen() {
                             Login with your ASHA / ANM / PHC Worker credentials
                         </Text>
 
+                        {errorMsg ? (
+                            <Animated.View entering={FadeInDown.duration(300)} style={styles.errorBox}>
+                                <Text style={styles.errorText}>{errorMsg}</Text>
+                            </Animated.View>
+                        ) : null}
+
                         <Animated.View entering={FadeInUp.duration(500)} style={styles.inputGroup}>
+                            {/* Name */}
+                            <Text style={styles.label}>Full Name</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Enter your name"
+                                placeholderTextColor="#4A6280"
+                                value={name}
+                                onChangeText={setName}
+                            />
+
+                            {/* Role */}
+                            <Text style={styles.label}>Role</Text>
+                            <View style={styles.roleContainer}>
+                                {['ASHA', 'PHC Worker', 'ANM', 'Others'].map(r => (
+                                    <TouchableOpacity
+                                        key={r}
+                                        style={[styles.roleChip, role === r && styles.roleChipActive]}
+                                        onPress={() => setRole(r)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={[styles.roleChipText, role === r && styles.roleChipTextActive]}>
+                                            {r}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
                             {/* Worker ID */}
                             <Text style={styles.label}>Worker ID</Text>
                             <TextInput
@@ -108,7 +208,7 @@ export default function WorkerLoginScreen() {
                                 <Text style={styles.forgotText}>Forgot password? Contact your PHC supervisor</Text>
                             </TouchableOpacity>
                         </Animated.View>
-                    </Animated.View>
+                    </Animated.ScrollView>
                 </KeyboardAvoidingView>
             </SafeAreaView>
         </View>
@@ -121,10 +221,11 @@ const styles = StyleSheet.create({
     kav: { flex: 1 },
     backBtn: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 4 },
     backText: { color: '#00C9A7', fontSize: 16, fontWeight: '600' },
-    content: {
-        flex: 1,
+    scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: 28,
         paddingTop: 32,
+        paddingBottom: 50,
         alignItems: 'center',
     },
     iconWrapper: {
@@ -194,4 +295,46 @@ const styles = StyleSheet.create({
     primaryBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
     forgotBtn: { alignItems: 'center', marginTop: 10 },
     forgotText: { color: '#4FC3F7', fontSize: 13, fontWeight: '500', textAlign: 'center' },
+    errorBox: {
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        padding: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(239, 68, 68, 0.3)',
+        marginBottom: 20,
+        width: '100%',
+    },
+    errorText: {
+        color: '#EF4444',
+        fontSize: 14,
+        fontWeight: '600',
+        textAlign: 'center',
+    },
+    roleContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 4,
+    },
+    roleChip: {
+        backgroundColor: '#1A3A5C',
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'transparent',
+    },
+    roleChipActive: {
+        backgroundColor: '#0D3030',
+        borderColor: '#00C9A7',
+    },
+    roleChipText: {
+        color: '#9BB4D0',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    roleChipTextActive: {
+        color: '#00C9A7',
+        fontWeight: '700',
+    },
 });

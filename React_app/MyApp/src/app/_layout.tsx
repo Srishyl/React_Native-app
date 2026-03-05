@@ -5,6 +5,7 @@ import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { initializeDatabase } from '../database/db';
+import { LanguageProvider } from '../contexts/LanguageContext';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -14,9 +15,11 @@ export default function TabLayout() {
   }, []);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <Stack screenOptions={{ headerShown: false }} />
-    </ThemeProvider>
+    <LanguageProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <AnimatedSplashOverlay />
+        <Stack screenOptions={{ headerShown: false }} />
+      </ThemeProvider>
+    </LanguageProvider>
   );
 }

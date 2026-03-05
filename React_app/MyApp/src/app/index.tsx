@@ -1,15 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  FlatList,
-  Dimensions,
-  StatusBar,
-  Platform,
-  ViewToken,
-} from 'react-native';
+import { Text } from '@/components/AppText';
+
+import { StyleSheet, View, TouchableOpacity, FlatList, Dimensions, StatusBar, Platform, ViewToken } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   FadeInDown,
@@ -140,11 +132,13 @@ const slideStyles = StyleSheet.create({
   },
 });
 
+import { useLanguage } from '../contexts/LanguageContext';
+
 // ─── Main Landing Screen ───────────────────────────────────────────────────────
 export default function LandingScreen() {
   const router = useRouter();
   const [activeIndex, setActiveIndex] = useState(0);
-  const [selectedLang, setSelectedLang] = useState('en');
+  const { language: selectedLang, setLanguage: setSelectedLang } = useLanguage();
   const flatListRef = useRef<FlatList>(null);
 
   const onViewableItemsChanged = useCallback(

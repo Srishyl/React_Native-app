@@ -1,7 +1,7 @@
 import React from 'react';
+import { Text } from '@/components/AppText';
 import {
     View,
-    Text,
     TouchableOpacity,
     StyleSheet,
     ScrollView,
@@ -221,16 +221,14 @@ export default function NormalDashboard() {
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
                             <Text style={[styles.greetingSub, { marginTop: 0 }]}>How are you feeling today?</Text>
                             <TouchableOpacity
-                                style={{ backgroundColor: '#1E293B', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }}
-                                onPress={async () => {
-                                    if (phone) {
-                                        await db.runAsync("UPDATE patient_profiles SET care_mode = 'pregnancy' WHERE phone = ?", [phone]);
-                                        router.replace({ pathname: '/dashboards/pregnancy' as any, params: { phone } });
-                                    }
-                                }}
+                                style={{ backgroundColor: '#1E293B', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: '#334155' }}
+                                onPress={() => router.push({
+                                    pathname: '/pregnancy-activation/step1' as any,
+                                    params: { phone: phone ?? '' }
+                                })}
                                 activeOpacity={0.8}
                             >
-                                <Text style={{ color: '#F06292', fontSize: 12, fontWeight: '700' }}>🤰 Switch Mode</Text>
+                                <Text style={{ color: '#F06292', fontSize: 12, fontWeight: '700' }}>🤰 Pregnancy Mode ›</Text>
                             </TouchableOpacity>
                         </View>
                     </Animated.View>
@@ -254,7 +252,7 @@ export default function NormalDashboard() {
                         </TouchableOpacity>
 
                         {/* Action Card 2: Find PHC */}
-                        <TouchableOpacity
+                        < TouchableOpacity
                             style={styles.actionCard}
                             activeOpacity={0.8}
                             onPress={() => router.push('/find-phc' as any)}
@@ -267,10 +265,10 @@ export default function NormalDashboard() {
                                 />
                             </View>
                             <Text style={styles.actionText}>Find PHC</Text>
-                        </TouchableOpacity>
+                        </TouchableOpacity >
 
                         {/* Action Card 3: My Records */}
-                        <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
+                        < TouchableOpacity style={styles.actionCard} activeOpacity={0.8} >
                             <View style={[styles.iconBox, { backgroundColor: '#E8F1FE' }]}>
                                 <Image
                                     source={require('../../../assets/icon_my_records.png')}
@@ -279,10 +277,10 @@ export default function NormalDashboard() {
                                 />
                             </View>
                             <Text style={styles.actionText}>My Records</Text>
-                        </TouchableOpacity>
+                        </TouchableOpacity >
 
                         {/* Action Card 4: Medicines */}
-                        <TouchableOpacity
+                        < TouchableOpacity
                             style={styles.actionCard}
                             activeOpacity={0.8}
                             onPress={() => router.push('/drug-recommendation' as any)}
@@ -295,12 +293,12 @@ export default function NormalDashboard() {
                                 />
                             </View>
                             <Text style={styles.actionText}>Medicines</Text>
-                        </TouchableOpacity>
-                    </Animated.View>
+                        </TouchableOpacity >
+                    </Animated.View >
 
 
                     {/* ── Nearest PHC ── */}
-                    <Animated.View entering={FadeInUp.duration(500).delay(300)} style={styles.section}>
+                    < Animated.View entering={FadeInUp.duration(500).delay(300)} style={styles.section} >
                         <Text style={styles.sectionTitle}>Nearest PHC</Text>
                         <View style={styles.phcCard}>
                             <View style={styles.phcHeaderRow}>
@@ -322,7 +320,7 @@ export default function NormalDashboard() {
                                 <Text style={styles.bookTokenText}>📍 Start Search</Text>
                             </TouchableOpacity>
                         </View>
-                    </Animated.View>
+                    </Animated.View >
 
                     {/* ── Family Details ── */}
                     {familyMembers.length > 0 && (
@@ -352,7 +350,7 @@ export default function NormalDashboard() {
                     )}
 
                     {/* ── Your Tokens ── */}
-                    <Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.section}>
+                    < Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.section} >
                         <Text style={styles.sectionTitle}>Your Tokens</Text>
                         <View style={styles.remindersCard}>
                             {appointments.length === 0 ? (
@@ -386,197 +384,68 @@ export default function NormalDashboard() {
                                 ))
                             )}
                         </View>
-                    </Animated.View>
+                    </Animated.View >
 
                     {/* ── Completed Tokens ── */}
-                    {completedAppointments.length > 0 && (
-                        <Animated.View entering={FadeInUp.duration(500).delay(500)} style={styles.section}>
-                            <Text style={styles.sectionTitle}>Completed Tokens</Text>
-                            <View style={styles.remindersCard}>
-                                {completedAppointments.map((app, index) => (
-                                    <React.Fragment key={app.id}>
-                                        <View style={[styles.reminderRow, { opacity: 0.7 }]}>
-                                            <View style={styles.reminderIconDone}>
-                                                <Text style={styles.reminderCheck}>✓</Text>
+                    {
+                        completedAppointments.length > 0 && (
+                            <Animated.View entering={FadeInUp.duration(500).delay(500)} style={styles.section}>
+                                <Text style={styles.sectionTitle}>Completed Tokens</Text>
+                                <View style={styles.remindersCard}>
+                                    {completedAppointments.map((app, index) => (
+                                        <React.Fragment key={app.id}>
+                                            <View style={[styles.reminderRow, { opacity: 0.7 }]}>
+                                                <View style={styles.reminderIconDone}>
+                                                    <Text style={styles.reminderCheck}>✓</Text>
+                                                </View>
+                                                <View style={styles.reminderInfo}>
+                                                    <Text style={[styles.reminderTitle, { textDecorationLine: 'line-through', color: '#6B8BAE' }]}>{app.doctor_name}</Text>
+                                                    <Text style={styles.reminderTime}>{app.specialty} at {app.time}</Text>
+                                                    <Text style={{ fontSize: 11, color: '#6B8BAE', marginTop: 4, fontWeight: '600' }}>
+                                                        Token: {app.token_id || 'N/A'} • Pat ID: {app.patient_id || 'N/A'} • Doc: {app.doctor_id || 'N/A'}
+                                                    </Text>
+                                                </View>
+                                                <Text style={styles.statusDone}>Completed</Text>
                                             </View>
-                                            <View style={styles.reminderInfo}>
-                                                <Text style={[styles.reminderTitle, { textDecorationLine: 'line-through', color: '#6B8BAE' }]}>{app.doctor_name}</Text>
-                                                <Text style={styles.reminderTime}>{app.specialty} at {app.time}</Text>
-                                                <Text style={{ fontSize: 11, color: '#6B8BAE', marginTop: 4, fontWeight: '600' }}>
-                                                    Token: {app.token_id || 'N/A'} • Pat ID: {app.patient_id || 'N/A'} • Doc: {app.doctor_id || 'N/A'}
-                                                </Text>
-                                            </View>
-                                            <Text style={styles.statusDone}>Completed</Text>
-                                        </View>
-                                        {index < completedAppointments.length - 1 && <View style={styles.divider} />}
-                                    </React.Fragment>
-                                ))}
-                            </View>
-                        </Animated.View>
-                    )}
+                                            {index < completedAppointments.length - 1 && <View style={styles.divider} />}
+                                        </React.Fragment>
+                                    ))}
+                                </View>
+                            </Animated.View>
+                        )
+                    }
 
                     <View style={{ height: 100 }} />
-                </ScrollView>
+                </ScrollView >
 
                 {/* ── Bottom Navigation Bar ── */}
-                <View style={styles.bottomNav}>
-                    <TouchableOpacity style={styles.navItem}>
+                < View style={styles.bottomNav} >
+                    <TouchableOpacity style={styles.navItem} activeOpacity={1}>
                         <Text style={styles.navIconActive}>⌂</Text>
                         <Text style={styles.navTextActive}>Home</Text>
                     </TouchableOpacity>
-
-                    {/* Central FAB */}
-                    <View style={styles.fabContainer}>
-                        <TouchableOpacity
-                            style={styles.fabButton}
-                            activeOpacity={0.8}
-                            onPress={() => setScanModalVisible(true)}
-                        >
-                            <Text style={styles.fabIcon}>📸</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.fabLabel}>Scan</Text>
-                    </View>
-
+                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={() => router.push('/drug-recommendation' as any)}>
+                        <Text style={styles.navIcon}>📄</Text>
+                        <Text style={styles.navText}>Records</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+                        <Text style={styles.navIcon}>🔔</Text>
+                        <Text style={styles.navText}>Alerts</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.navItem}
-                        onPress={() => setSidebarOpen(true)}
+                        activeOpacity={0.7}
+                        onPress={() => router.push({
+                            pathname: '/profile-setup/step1' as any,
+                            params: { phone: phone ?? '' }
+                        })}
                     >
-                        <Text style={styles.navIcon}>�</Text>
+                        <Text style={styles.navIcon}>👤</Text>
                         <Text style={styles.navText}>Profile</Text>
                     </TouchableOpacity>
-                </View>
-            </SafeAreaView>
-
-            {/* ── Scan Document Modal ── */}
-            {scanModalVisible && (
-                <View style={[StyleSheet.absoluteFill, { zIndex: 999, justifyContent: 'flex-end' }]}>
-                    <Animated.View
-                        entering={FadeIn.duration(200)}
-                        exiting={FadeOut.duration(200)}
-                        style={styles.sidebarBackdrop}
-                    >
-                        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setScanModalVisible(false)} />
-                    </Animated.View>
-                    <Animated.View
-                        entering={FadeInDown.duration(300).springify()}
-                        exiting={FadeOut.duration(200)}
-                        style={styles.scanModalContent}
-                    >
-                        <View style={styles.scanModalHeader}>
-                            <Text style={styles.scanModalTitle}>Add Document</Text>
-                            <TouchableOpacity onPress={() => setScanModalVisible(false)}>
-                                <Text style={styles.scanModalClose}>✕</Text>
-                            </TouchableOpacity>
-                        </View>
-                        <Text style={styles.scanModalSub}>Choose a method to scan or upload your medical records.</Text>
-
-                        {isScanning ? (
-                            <View style={{ alignItems: 'center', marginTop: 40, marginBottom: 20 }}>
-                                <ActivityIndicator size="large" color="#38BDF8" />
-                                <Text style={{ color: '#94A3B8', marginTop: 16 }}>Analyzing document with AI...</Text>
-                            </View>
-                        ) : scanSummary ? (
-                            <Animated.View entering={FadeInDown.duration(400)} style={{ marginTop: 24 }}>
-                                <Text style={{ color: '#38BDF8', fontSize: 16, fontWeight: '700', marginBottom: 8 }}>📝 Summary</Text>
-                                <ScrollView style={{ maxHeight: 250, backgroundColor: '#111A2C', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#334155' }}>
-                                    <Text style={{ color: '#E2E8F0', fontSize: 14, lineHeight: 22 }}>{scanSummary}</Text>
-                                </ScrollView>
-                                <TouchableOpacity
-                                    style={{ backgroundColor: '#3D8EFF', padding: 16, borderRadius: 16, marginTop: 16, alignItems: 'center' }}
-                                    onPress={() => { setScanModalVisible(false); setScanSummary(null); }}
-                                    activeOpacity={0.8}
-                                >
-                                    <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 16 }}>Done</Text>
-                                </TouchableOpacity>
-                            </Animated.View>
-                        ) : (
-                            <View style={{ gap: 16, marginTop: 24 }}>
-                                <TouchableOpacity style={styles.scanOptionBtn} onPress={handleTakePhoto} activeOpacity={0.8}>
-                                    <View style={[styles.scanIconBox, { backgroundColor: '#3D8EFF' }]}>
-                                        <Text style={{ fontSize: 24 }}>📷</Text>
-                                    </View>
-                                    <View style={{ flex: 1, marginLeft: 16 }}>
-                                        <Text style={styles.scanOptionTitle}>Take Photo</Text>
-                                        <Text style={styles.scanOptionDesc}>Use camera to scan physical documents</Text>
-                                    </View>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity style={styles.scanOptionBtn} onPress={handleUploadBox} activeOpacity={0.8}>
-                                    <View style={[styles.scanIconBox, { backgroundColor: '#10B981' }]}>
-                                        <Text style={{ fontSize: 24 }}>📁</Text>
-                                    </View>
-                                    <View style={{ flex: 1, marginLeft: 16 }}>
-                                        <Text style={styles.scanOptionTitle}>Upload from Gallery</Text>
-                                        <Text style={styles.scanOptionDesc}>Select existing images from your phone</Text>
-                                    </View>
-                                </TouchableOpacity>
-                            </View>
-                        )}
-                    </Animated.View>
-                </View>
-            )}
-
-            {/* ── Sidebar Overlay ── */}
-            {isSidebarOpen && (
-                <View style={[StyleSheet.absoluteFill, { zIndex: 999 }]}>
-                    <Animated.View
-                        entering={FadeIn.duration(200)}
-                        exiting={FadeOut.duration(200)}
-                        style={styles.sidebarBackdrop}
-                    >
-                        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setSidebarOpen(false)} />
-                    </Animated.View>
-                    <Animated.View
-                        entering={SlideInLeft.duration(300).springify()}
-                        exiting={SlideOutLeft.duration(300)}
-                        style={styles.sidebarContent}
-                    >
-                        <View style={styles.sidebarInner}>
-                            {/* Profile Header */}
-                            <View style={styles.sidebarProfileSec}>
-                                <View style={[styles.profileBtn, { width: 70, height: 70, borderRadius: 35, marginBottom: 16 }]}>
-                                    <Text style={{ fontSize: 32 }}>👤</Text>
-                                </View>
-                                <Text style={styles.sidebarName}>{patientName}</Text>
-                            </View>
-
-                            {/* Family Button */}
-                            <TouchableOpacity
-                                style={styles.sidebarActionBtn}
-                                activeOpacity={0.8}
-                                onPress={async () => {
-                                    setSidebarOpen(false);
-                                    let activePhone = phone;
-                                    if (!activePhone) {
-                                        const fallbackUser: any = await db.getFirstAsync('SELECT phone FROM patient_profiles ORDER BY id DESC LIMIT 1');
-                                        if (fallbackUser) activePhone = fallbackUser.phone;
-                                    }
-                                    router.push({ pathname: '/add-family' as any, params: { phone: activePhone } })
-                                }}
-                            >
-                                <Text style={styles.sidebarActionText}>Family Members ▾</Text>
-                            </TouchableOpacity>
-
-                            <View style={{ flex: 1 }} />
-
-                            {/* Logout Button */}
-                            <TouchableOpacity
-                                style={styles.sidebarLogoutBtn}
-                                activeOpacity={0.8}
-                                onPress={() => {
-                                    Alert.alert('Logout', 'Are you sure you want to logout?', [
-                                        { text: 'Cancel', style: 'cancel' },
-                                        { text: 'Logout', style: 'destructive', onPress: () => router.replace('/' as any) }
-                                    ]);
-                                }}
-                            >
-                                <Text style={styles.sidebarLogoutText}>⎋ Logout</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </Animated.View>
-                </View>
-            )}
-        </View>
+                </View >
+            </SafeAreaView >
+        </View >
     );
 }
 
@@ -644,8 +513,23 @@ const styles = StyleSheet.create({
 
     // Greeting
     greetingSection: { marginBottom: 32 },
+    greetingHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        marginTop: 8
+    },
     greetingText: { color: '#FFFFFF', fontSize: 32, fontWeight: '800', lineHeight: 40, letterSpacing: -0.5 },
-    greetingSub: { color: '#94A3B8', fontSize: 15, marginTop: 8 },
+    greetingSub: { color: '#94A3B8', fontSize: 15 },
+    switchModeBtn: {
+        backgroundColor: '#1E293B',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#334155',
+    },
+    switchModeText: { color: '#3D8EFF', fontSize: 12, fontWeight: '700' },
 
     // Grid
     grid: {

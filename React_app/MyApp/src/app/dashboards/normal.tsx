@@ -1,5 +1,5 @@
+import React from 'react';
 import { Text } from '@/components/AppText';
-
 import {
     View,
     TouchableOpacity,
@@ -110,16 +110,14 @@ export default function NormalDashboard() {
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
                             <Text style={[styles.greetingSub, { marginTop: 0 }]}>How are you feeling today?</Text>
                             <TouchableOpacity
-                                style={{ backgroundColor: '#1E293B', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }}
-                                onPress={async () => {
-                                    if (phone) {
-                                        await db.runAsync("UPDATE patient_profiles SET care_mode = 'pregnancy' WHERE phone = ?", [phone]);
-                                        router.replace({ pathname: '/dashboards/pregnancy' as any, params: { phone } });
-                                    }
-                                }}
+                                style={{ backgroundColor: '#1E293B', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: '#334155' }}
+                                onPress={() => router.push({
+                                    pathname: '/pregnancy-activation/step1' as any,
+                                    params: { phone: phone ?? '' }
+                                })}
                                 activeOpacity={0.8}
                             >
-                                <Text style={{ color: '#F06292', fontSize: 12, fontWeight: '700' }}>🤰 Switch Mode</Text>
+                                <Text style={{ color: '#F06292', fontSize: 12, fontWeight: '700' }}>🤰 Pregnancy Mode ›</Text>
                             </TouchableOpacity>
                         </View>
                     </Animated.View>
@@ -143,7 +141,7 @@ export default function NormalDashboard() {
                         </TouchableOpacity>
 
                         {/* Action Card 2: Find PHC */}
-                        <TouchableOpacity
+                        < TouchableOpacity
                             style={styles.actionCard}
                             activeOpacity={0.8}
                             onPress={() => router.push('/find-phc' as any)}
@@ -156,10 +154,10 @@ export default function NormalDashboard() {
                                 />
                             </View>
                             <Text style={styles.actionText}>Find PHC</Text>
-                        </TouchableOpacity>
+                        </TouchableOpacity >
 
                         {/* Action Card 3: My Records */}
-                        <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
+                        < TouchableOpacity style={styles.actionCard} activeOpacity={0.8} >
                             <View style={[styles.iconBox, { backgroundColor: '#E8F1FE' }]}>
                                 <Image
                                     source={require('../../../assets/icon_my_records.png')}
@@ -168,10 +166,10 @@ export default function NormalDashboard() {
                                 />
                             </View>
                             <Text style={styles.actionText}>My Records</Text>
-                        </TouchableOpacity>
+                        </TouchableOpacity >
 
                         {/* Action Card 4: Medicines */}
-                        <TouchableOpacity
+                        < TouchableOpacity
                             style={styles.actionCard}
                             activeOpacity={0.8}
                             onPress={() => router.push('/drug-recommendation' as any)}
@@ -184,11 +182,11 @@ export default function NormalDashboard() {
                                 />
                             </View>
                             <Text style={styles.actionText}>Medicines</Text>
-                        </TouchableOpacity>
-                    </Animated.View>
+                        </TouchableOpacity >
+                    </Animated.View >
 
                     {/* ── Nearest PHC ── */}
-                    <Animated.View entering={FadeInUp.duration(500).delay(300)} style={styles.section}>
+                    < Animated.View entering={FadeInUp.duration(500).delay(300)} style={styles.section} >
                         <Text style={styles.sectionTitle}>Nearest PHC</Text>
                         <View style={styles.phcCard}>
                             <View style={styles.phcHeaderRow}>
@@ -210,10 +208,10 @@ export default function NormalDashboard() {
                                 <Text style={styles.bookTokenText}>📍 Start Search</Text>
                             </TouchableOpacity>
                         </View>
-                    </Animated.View>
+                    </Animated.View >
 
                     {/* ── Your Tokens ── */}
-                    <Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.section}>
+                    < Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.section} >
                         <Text style={styles.sectionTitle}>Your Tokens</Text>
                         <View style={styles.remindersCard}>
                             {appointments.length === 0 ? (
@@ -247,40 +245,42 @@ export default function NormalDashboard() {
                                 ))
                             )}
                         </View>
-                    </Animated.View>
+                    </Animated.View >
 
                     {/* ── Completed Tokens ── */}
-                    {completedAppointments.length > 0 && (
-                        <Animated.View entering={FadeInUp.duration(500).delay(500)} style={styles.section}>
-                            <Text style={styles.sectionTitle}>Completed Tokens</Text>
-                            <View style={styles.remindersCard}>
-                                {completedAppointments.map((app, index) => (
-                                    <React.Fragment key={app.id}>
-                                        <View style={[styles.reminderRow, { opacity: 0.7 }]}>
-                                            <View style={styles.reminderIconDone}>
-                                                <Text style={styles.reminderCheck}>✓</Text>
+                    {
+                        completedAppointments.length > 0 && (
+                            <Animated.View entering={FadeInUp.duration(500).delay(500)} style={styles.section}>
+                                <Text style={styles.sectionTitle}>Completed Tokens</Text>
+                                <View style={styles.remindersCard}>
+                                    {completedAppointments.map((app, index) => (
+                                        <React.Fragment key={app.id}>
+                                            <View style={[styles.reminderRow, { opacity: 0.7 }]}>
+                                                <View style={styles.reminderIconDone}>
+                                                    <Text style={styles.reminderCheck}>✓</Text>
+                                                </View>
+                                                <View style={styles.reminderInfo}>
+                                                    <Text style={[styles.reminderTitle, { textDecorationLine: 'line-through', color: '#6B8BAE' }]}>{app.doctor_name}</Text>
+                                                    <Text style={styles.reminderTime}>{app.specialty} at {app.time}</Text>
+                                                    <Text style={{ fontSize: 11, color: '#6B8BAE', marginTop: 4, fontWeight: '600' }}>
+                                                        Token: {app.token_id || 'N/A'} • Pat ID: {app.patient_id || 'N/A'} • Doc: {app.doctor_id || 'N/A'}
+                                                    </Text>
+                                                </View>
+                                                <Text style={styles.statusDone}>Completed</Text>
                                             </View>
-                                            <View style={styles.reminderInfo}>
-                                                <Text style={[styles.reminderTitle, { textDecorationLine: 'line-through', color: '#6B8BAE' }]}>{app.doctor_name}</Text>
-                                                <Text style={styles.reminderTime}>{app.specialty} at {app.time}</Text>
-                                                <Text style={{ fontSize: 11, color: '#6B8BAE', marginTop: 4, fontWeight: '600' }}>
-                                                    Token: {app.token_id || 'N/A'} • Pat ID: {app.patient_id || 'N/A'} • Doc: {app.doctor_id || 'N/A'}
-                                                </Text>
-                                            </View>
-                                            <Text style={styles.statusDone}>Completed</Text>
-                                        </View>
-                                        {index < completedAppointments.length - 1 && <View style={styles.divider} />}
-                                    </React.Fragment>
-                                ))}
-                            </View>
-                        </Animated.View>
-                    )}
+                                            {index < completedAppointments.length - 1 && <View style={styles.divider} />}
+                                        </React.Fragment>
+                                    ))}
+                                </View>
+                            </Animated.View>
+                        )
+                    }
 
                     <View style={{ height: 100 }} />
-                </ScrollView>
+                </ScrollView >
 
                 {/* ── Bottom Navigation Bar ── */}
-                <View style={styles.bottomNav}>
+                < View style={styles.bottomNav} >
                     <TouchableOpacity style={styles.navItem} activeOpacity={1}>
                         <Text style={styles.navIconActive}>⌂</Text>
                         <Text style={styles.navTextActive}>Home</Text>
@@ -293,13 +293,20 @@ export default function NormalDashboard() {
                         <Text style={styles.navIcon}>🔔</Text>
                         <Text style={styles.navText}>Alerts</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+                    <TouchableOpacity
+                        style={styles.navItem}
+                        activeOpacity={0.7}
+                        onPress={() => router.push({
+                            pathname: '/profile-setup/step1' as any,
+                            params: { phone: phone ?? '' }
+                        })}
+                    >
                         <Text style={styles.navIcon}>👤</Text>
                         <Text style={styles.navText}>Profile</Text>
                     </TouchableOpacity>
-                </View>
-            </SafeAreaView>
-        </View>
+                </View >
+            </SafeAreaView >
+        </View >
     );
 }
 
@@ -339,8 +346,23 @@ const styles = StyleSheet.create({
 
     // Greeting
     greetingSection: { marginBottom: 32 },
+    greetingHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        marginTop: 8
+    },
     greetingText: { color: '#FFFFFF', fontSize: 32, fontWeight: '800', lineHeight: 40, letterSpacing: -0.5 },
-    greetingSub: { color: '#94A3B8', fontSize: 15, marginTop: 8 },
+    greetingSub: { color: '#94A3B8', fontSize: 15 },
+    switchModeBtn: {
+        backgroundColor: '#1E293B',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#334155',
+    },
+    switchModeText: { color: '#3D8EFF', fontSize: 12, fontWeight: '700' },
 
     // Grid
     grid: {

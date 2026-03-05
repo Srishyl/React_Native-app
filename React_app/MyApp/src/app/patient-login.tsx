@@ -84,14 +84,37 @@ export default function PatientLoginScreen() {
         setLoading(true);
         try {
             if (otp.trim() === generatedOtp) {
-                // OTP verified — navigate to 3-step profile setup
-                router.replace({
-                    pathname: '/profile-setup/step1' as any,
-                    params: { phone: phone.trim() },
-                });
+                // Check if user is returning
+                const returningUser: any = await db.getFirstAsync(
+                    'SELECT profile_complete, care_mode FROM patient_profiles WHERE phone = ?',
+                    [phone.trim()]
+                );
+
+                if (returningUser && returningUser.profile_complete === 1) {
+                    // Navigate to respective dashboard directly
+                    if (returningUser.care_mode === 'pregnancy') {
+                        router.replace({
+                            pathname: '/dashboards/pregnancy' as any,
+                            params: { phone: phone.trim() },
+                        });
+                    } else {
+                        router.replace({
+                            pathname: '/dashboards/normal' as any,
+                            params: { phone: phone.trim() },
+                        });
+                    }
+                } else {
+                    // OTP verified — navigate to 3-step profile setup for new or incomplete user
+                    router.replace({
+                        pathname: '/profile-setup/step1' as any,
+                        params: { phone: phone.trim() },
+                    });
+                }
             } else {
                 Alert.alert('Wrong OTP', 'The OTP you entered is incorrect. Please try again.');
             }
+        } catch (err) {
+            console.error('OTP verify error:', err);
         } finally {
             setLoading(false);
         }

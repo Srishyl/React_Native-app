@@ -7,6 +7,7 @@ import {
     ScrollView,
     StatusBar,
     Platform,
+    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -102,10 +103,30 @@ export default function PregnancyDashboard() {
                             <Text style={styles.greetingText}>Hi {patientName},</Text>
                             <Text style={styles.headerTitle}>Week 24 of Pregnancy 🌸</Text>
                             <Text style={styles.headerSub}>Your baby is the size of a corn 🌽</Text>
+                            <TouchableOpacity
+                                style={{ backgroundColor: '#2D1F2D', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, marginTop: 8 }}
+                                onPress={async () => {
+                                    if (phone) {
+                                        await db.runAsync("UPDATE patient_profiles SET care_mode = 'normal' WHERE phone = ?", [phone]);
+                                        router.replace({ pathname: '/dashboards/normal' as any, params: { phone } });
+                                    }
+                                }}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={{ color: '#3D8EFF', fontSize: 11, fontWeight: '700' }}>💼 Switch Home</Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
-                    <TouchableOpacity style={styles.profileBtn}>
-                        <Text style={styles.profileIcon}>👤</Text>
+                    <TouchableOpacity
+                        style={styles.profileBtn}
+                        onPress={() => {
+                            Alert.alert('Logout', 'Are you sure you want to logout?', [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Logout', style: 'destructive', onPress: () => router.replace('/' as any) }
+                            ]);
+                        }}
+                    >
+                        <Text style={styles.profileIcon}>🚪</Text>
                     </TouchableOpacity>
                 </Animated.View>
 

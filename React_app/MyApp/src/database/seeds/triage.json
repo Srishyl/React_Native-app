@@ -1,0 +1,202 @@
+{
+    "SYMPTOMS": [
+        {
+            "id": "fever",
+            "label": "Fever",
+            "icon": "🌡️"
+        },
+        {
+            "id": "cough",
+            "label": "Cough",
+            "icon": "💨"
+        },
+        {
+            "id": "fatigue",
+            "label": "Fatigue",
+            "icon": "😴"
+        },
+        {
+            "id": "high_fever",
+            "label": "High Fever",
+            "icon": "🔥"
+        },
+        {
+            "id": "vomiting",
+            "label": "Vomiting",
+            "icon": "🤮"
+        },
+        {
+            "id": "severe_headache",
+            "label": "Severe Headache",
+            "icon": "🤯"
+        },
+        {
+            "id": "chest_pain",
+            "label": "Chest Pain",
+            "icon": "🫀"
+        },
+        {
+            "id": "breathlessness",
+            "label": "Breathlessness",
+            "icon": "😮‍💨"
+        },
+        {
+            "id": "sore_throat",
+            "label": "Sore Throat",
+            "icon": "🧣"
+        },
+        {
+            "id": "runny_nose",
+            "label": "Runny Nose",
+            "icon": "💧"
+        },
+        {
+            "id": "body_ache",
+            "label": "Body Ache",
+            "icon": "🤕"
+        },
+        {
+            "id": "nausea",
+            "label": "Nausea",
+            "icon": "🤢"
+        },
+        {
+            "id": "dizziness",
+            "label": "Dizziness",
+            "icon": "😵‍💫"
+        },
+        {
+            "id": "rash",
+            "label": "Skin Rash",
+            "icon": "🩺"
+        },
+        {
+            "id": "diarrhea",
+            "label": "Diarrhea",
+            "icon": "🚽"
+        }
+    ],
+    "MOCK_TRIAGE_DATA": [
+        {
+            "symptoms": [
+                "fever",
+                "cough",
+                "fatigue"
+            ],
+            "disease": "Common Cold",
+            "severity": "Mild"
+        },
+        {
+            "symptoms": [
+                "high_fever",
+                "vomiting",
+                "severe_headache"
+            ],
+            "disease": "Dengue",
+            "severity": "Emergency"
+        },
+        {
+            "symptoms": [
+                "chest_pain",
+                "breathlessness"
+            ],
+            "disease": "Cardiac Issue",
+            "severity": "Emergency"
+        },
+        {
+            "symptoms": [
+                "fever",
+                "sore_throat",
+                "cough"
+            ],
+            "disease": "Post-Viral Flu",
+            "severity": "Moderate"
+        },
+        {
+            "symptoms": [
+                "nausea",
+                "vomiting",
+                "body_ache"
+            ],
+            "disease": "Gastroenteritis",
+            "severity": "Moderate"
+        },
+        {
+            "symptoms": [
+                "high_fever",
+                "severe_headache",
+                "body_ache"
+            ],
+            "disease": "Malaria",
+            "severity": "Emergency"
+        },
+        {
+            "symptoms": [
+                "fever",
+                "cough",
+                "breathlessness"
+            ],
+            "disease": "Pneumonia",
+            "severity": "Emergency"
+        },
+        {
+            "symptoms": [
+                "dizziness",
+                "fatigue"
+            ],
+            "disease": "Anemia",
+            "severity": "Moderate"
+        },
+        {
+            "symptoms": [
+                "diarrhea",
+                "vomiting"
+            ],
+            "disease": "Cholera (Suspicion)",
+            "severity": "Emergency"
+        },
+        {
+            "symptoms": [
+                "rash",
+                "fever"
+            ],
+            "disease": "Measles/Chickenpox",
+            "severity": "Moderate"
+        }
+    ],
+    "RECOMMENDATIONS": {
+        "Emergency": "Visit nearest PHC immediately",
+        "Moderate": "Schedule a consultation with a doctor within 24 hours.",
+        "Mild": "Home care guidance: Rest, hydrate, and monitor symptoms."
+    },
+    "MOCK_DRUGS": {
+        "Common Cold": [
+            {
+                "name": "Paracetamol",
+                "dosage": "500mg every 6 hours",
+                "warnings": "Do not exceed 4g in 24 hours."
+            }
+        ],
+        "Dengue": [
+            {
+                "name": "Fluid Therapy",
+                "dosage": "ORR/Electrolytes",
+                "warnings": "Avoid Aspirin/Ibuprofen."
+            }
+        ],
+        "Cardiac Issue": [
+            {
+                "name": "Emergency Care",
+                "dosage": "Seek professional help",
+                "warnings": "Do not delay."
+            }
+        ],
+        "Malaria": [
+            {
+                "name": "ACT Therapy",
+                "dosage": "As per body weight",
+                "warnings": "Consult PHC immediately."
+            }
+        ]
+    }
+}

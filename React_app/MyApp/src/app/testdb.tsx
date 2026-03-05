@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, Text, Button } from 'react-native';
+import { useRouter } from 'expo-router';
 import db from '../database/db';
 
 export default function TestDB() {
+  const router = useRouter();
 
   const insertTestData = async () => {
     try {
@@ -44,6 +46,8 @@ export default function TestDB() {
       <Button title="Insert Test Patient" onPress={insertTestData} />
       <View style={{ height: 20 }} />
       <Button title="Fetch Patients" onPress={fetchPatients} />
+      <View style={{ height: 40 }} />
+      <Button title="Go Back Home" onPress={() => router.replace('/')} color="#2E7D32" />
     </View>
   );
 }

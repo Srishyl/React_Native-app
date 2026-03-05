@@ -3,6 +3,11 @@
 # dependencies
 node_modules/
 
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+
 # Expo
 .expo/
 dist/
@@ -32,6 +37,7 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
 
 # typescript
 *.tsbuildinfo
@@ -42,4 +48,6 @@ app-example
 /ios
 /android
 
+# database
 *.db
+

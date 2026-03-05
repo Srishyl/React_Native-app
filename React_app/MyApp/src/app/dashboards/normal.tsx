@@ -61,7 +61,18 @@ export default function NormalDashboard() {
                     {/* ── Greeting ── */}
                     <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.greetingSection}>
                         <Text style={styles.greetingText}>Good morning,{'\n'}{patientName} 👋</Text>
-                        <Text style={styles.greetingSub}>How are you feeling today?</Text>
+                        <View style={styles.greetingHeaderRow}>
+                            <Text style={styles.greetingSub}>How are you feeling today?</Text>
+                            <TouchableOpacity
+                                style={styles.switchModeBtn}
+                                onPress={() => router.push({
+                                    pathname: '/pregnancy-activation/step1' as any,
+                                    params: { phone: phone ?? '' }
+                                })}
+                            >
+                                <Text style={styles.switchModeText}>Switch to Pregnancy Mode ›</Text>
+                            </TouchableOpacity>
+                        </View>
                     </Animated.View>
 
                     {/* ── Quick Actions Grid ── */}
@@ -199,7 +210,14 @@ export default function NormalDashboard() {
                         <Text style={styles.navIcon}>🔔</Text>
                         <Text style={styles.navText}>Alerts</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+                    <TouchableOpacity
+                        style={styles.navItem}
+                        activeOpacity={0.7}
+                        onPress={() => router.push({
+                            pathname: '/profile-setup/step1' as any,
+                            params: { phone: phone ?? '' }
+                        })}
+                    >
                         <Text style={styles.navIcon}>👤</Text>
                         <Text style={styles.navText}>Profile</Text>
                     </TouchableOpacity>
@@ -245,8 +263,23 @@ const styles = StyleSheet.create({
 
     // Greeting
     greetingSection: { marginBottom: 32 },
+    greetingHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        marginTop: 8
+    },
     greetingText: { color: '#FFFFFF', fontSize: 32, fontWeight: '800', lineHeight: 40, letterSpacing: -0.5 },
-    greetingSub: { color: '#94A3B8', fontSize: 15, marginTop: 8 },
+    greetingSub: { color: '#94A3B8', fontSize: 15 },
+    switchModeBtn: {
+        backgroundColor: '#1E293B',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#334155',
+    },
+    switchModeText: { color: '#3D8EFF', fontSize: 12, fontWeight: '700' },
 
     // Grid
     grid: {

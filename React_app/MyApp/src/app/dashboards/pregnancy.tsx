@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -14,15 +14,27 @@ import { Image } from 'expo-image';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import db from '../../database/db';
 
-// ─── SVG Rings (Simulated with absolute views) ─────────────────────────────────
+// ─── Progress Ring Component ──────────────────────────────────────────────────
 function ProgressRing({ current, total }: { current: number; total: number }) {
-    // A simple simulated ring using borders for the design
+    const percentage = Math.min((current / total) * 100, 100);
+
     return (
         <View style={ring.container}>
             <View style={ring.baseCircle} />
-            {/* Note: React Native styling doesn't easily do partial circular borders without SVG.
-          We use a solid base + an overlay to simulate the thick pink arc style. */}
-            <View style={ring.activeArc}>
+            {/* 
+                We use multiple borders at different rotations to simulate the arc.
+                For a perfect ring in RN without SVG, we'd need a more complex solution, 
+                but we'll stick to a high-quality simulation using the borders.
+            */}
+            <View style={[
+                ring.activeArc,
+                {
+                    borderColor: '#F06292',
+                    borderRightColor: percentage > 25 ? '#F06292' : 'transparent',
+                    borderBottomColor: percentage > 50 ? '#F06292' : 'transparent',
+                    borderLeftColor: percentage > 75 ? '#F06292' : 'transparent',
+                }
+            ]}>
                 <View style={ring.innerCircle}>
                     <Text style={ring.numberText}>{current}</Text>
                     <Text style={ring.label}>WEEKS</Text>
@@ -33,33 +45,28 @@ function ProgressRing({ current, total }: { current: number; total: number }) {
 }
 
 const ring = StyleSheet.create({
-    container: { width: 180, height: 180, alignSelf: 'center', marginVertical: 20 },
+    container: { width: 220, height: 220, alignSelf: 'center', marginVertical: 30, justifyContent: 'center', alignItems: 'center' },
     baseCircle: {
         ...StyleSheet.absoluteFillObject,
-        borderRadius: 90,
-        borderWidth: 12,
-        borderColor: '#1E293B',
+        borderRadius: 110,
+        borderWidth: 16,
+        borderColor: '#111A2C',
     },
     activeArc: {
         ...StyleSheet.absoluteFillObject,
-        borderRadius: 90,
-        // Simulating the 24/40 weeks pink arc
-        borderTopWidth: 12,
-        borderRightWidth: 12,
-        borderBottomWidth: 12,
-        borderLeftWidth: 12,
-        borderColor: '#F06292',
-        borderLeftColor: 'transparent',
-        borderBottomColor: 'transparent',
+        borderRadius: 110,
+        borderWidth: 16,
+        borderColor: 'transparent',
+        borderTopColor: '#F06292',
         transform: [{ rotate: '-45deg' }],
     },
     innerCircle: {
         ...StyleSheet.absoluteFillObject,
         justifyContent: 'center',
         alignItems: 'center',
-        transform: [{ rotate: '45deg' }], // reverse rotation for text
+        transform: [{ rotate: '45deg' }],
     },
-    numberText: { color: '#F06292', fontSize: 44, fontWeight: '800', marginBottom: -4 },
+    numberText: { color: '#F06292', fontSize: 60, fontWeight: '800', marginBottom: -4 },
     label: { color: '#94A3B8', fontSize: 13, fontWeight: '600', letterSpacing: 1 },
 });
 
@@ -67,44 +74,79 @@ const ring = StyleSheet.create({
 export default function PregnancyDashboard() {
     const router = useRouter();
     const { phone } = useLocalSearchParams<{ phone: string }>();
-    const [patientName, setPatientName] = React.useState('Mama');
+    const [patientName, setPatientName] = useState('Mama');
+    const [stats, setStats] = useState({ week: 1, daysLeft: 280, fruit: 'raspberry 🫐' });
+    const [nextVisit, setNextVisit] = useState<any>(null);
 
-    React.useEffect(() => {
-        async function loadUser() {
+    useEffect(() => {
+        async function loadData() {
             if (!phone) return;
             try {
-                const row: any = await db.getFirstAsync(
+                // Fetch patient name
+                const user: any = await db.getFirstAsync(
                     'SELECT full_name FROM patient_profiles WHERE phone = ?',
                     [phone]
                 );
-                if (row && row.full_name) {
-                    setPatientName(row.full_name.split(' ')[0]);
+                if (user && user.full_name) setPatientName(user.full_name.split(' ')[0]);
+
+                // Fetch pregnancy record
+                const preg: any = await db.getFirstAsync(
+                    'SELECT edd, pregnancy_start_date FROM pregnancy_records WHERE phone = ?',
+                    [phone]
+                );
+
+                if (preg && preg.edd) {
+                    const { calculatePregnancyStats } = require('../../utils/pregnancy');
+                    const pStats = calculatePregnancyStats(preg.edd);
+                    setStats({
+                        week: pStats.currentWeek,
+                        daysLeft: pStats.daysRemaining,
+                        fruit: pStats.babySize
+                    });
                 }
+
+                // Fetch next ANC visit
+                const visit: any = await db.getFirstAsync(
+                    "SELECT scheduled_date FROM anc_visits WHERE phone = ? AND status = 'upcoming' ORDER BY scheduled_date ASC",
+                    [phone]
+                );
+                if (visit) {
+                    const d = new Date(visit.scheduled_date);
+                    const formattedDate = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                    setNextVisit({ date: formattedDate });
+                }
+
             } catch (err) {
-                console.error('Failed to load user info:', err);
+                console.error('Failed to load pregnancy data:', err);
             }
         }
-        loadUser();
+        loadData();
     }, [phone]);
+
+    const navigateToProfile = () => {
+        router.push({
+            pathname: '/profile-setup/step1' as any,
+            params: { phone: phone ?? '' }
+        });
+    };
 
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor="#0D1522" />
+            <StatusBar barStyle="light-content" backgroundColor="#0B1320" />
             <SafeAreaView style={styles.safeArea} edges={['top']}>
 
                 {/* ── Header ── */}
                 <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
                     <View style={styles.headerLeft}>
-                        <View style={styles.appIcon}>
-                            <Text style={styles.appIconText}>🍃</Text>
+                        <View style={styles.logoBox}>
+                            <Text style={styles.logoIcon}>🍃</Text>
                         </View>
                         <View>
-                            <Text style={styles.greetingText}>Hi {patientName},</Text>
-                            <Text style={styles.headerTitle}>Week 24 of Pregnancy 🌸</Text>
-                            <Text style={styles.headerSub}>Your baby is the size of a corn 🌽</Text>
+                            <Text style={styles.headerTitle}>Week {stats.week} of Pregnancy 🌸</Text>
+                            <Text style={styles.headerSubtitle}>Your baby is the size of a {stats.fruit}</Text>
                         </View>
                     </View>
-                    <TouchableOpacity style={styles.profileBtn}>
+                    <TouchableOpacity style={styles.profileBtn} onPress={navigateToProfile}>
                         <Text style={styles.profileIcon}>👤</Text>
                     </TouchableOpacity>
                 </Animated.View>
@@ -115,100 +157,110 @@ export default function PregnancyDashboard() {
                     showsVerticalScrollIndicator={false}
                 >
                     {/* ── Progress Card ── */}
-                    <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.progressCard}>
-                        <ProgressRing current={24} total={40} />
-                        <View style={styles.weekRow}>
-                            <Text style={styles.weekText}>0 Weeks</Text>
-                            <Text style={styles.weekText}>40 Weeks</Text>
+                    <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.statsCard}>
+                        <ProgressRing current={stats.week} total={40} />
+                        <View style={styles.rangeRow}>
+                            <Text style={styles.rangeText}>0 Weeks</Text>
+                            <Text style={styles.rangeText}>40 Weeks</Text>
                         </View>
-                        <View style={styles.daysWrapper}>
-                            <Text style={styles.daysLabel}>Days until due date</Text>
-                            <Text style={styles.daysValue}>112 days</Text>
+                        <View style={styles.dueCountdown}>
+                            <Text style={styles.dueLabel}>Days until due date</Text>
+                            <Text style={styles.dueValue}>{stats.daysLeft} days</Text>
                         </View>
                     </Animated.View>
 
-                    {/* ── Quick Actions Grid ── */}
-                    <Animated.View entering={FadeInUp.duration(500).delay(200)}>
+                    {/* ── Quick Actions ── */}
+                    <Animated.View entering={FadeInDown.duration(500).delay(200)}>
                         <Text style={styles.sectionTitle}>QUICK ACTIONS</Text>
-                        <View style={styles.grid}>
-                            <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
+                        <View style={styles.actionGrid}>
+                            <TouchableOpacity
+                                style={styles.actionItem}
+                                onPress={() => router.push({
+                                    pathname: '/dashboards/anc-visits' as any,
+                                    params: { phone: phone ?? '' }
+                                })}
+                            >
                                 <View style={[styles.iconBox, { backgroundColor: '#1E293B' }]}>
-                                    <Image source={require('../../../assets/icon_anc.png')} style={styles.actionImg} />
+                                    <Text style={styles.emojiIcon}>📅</Text>
                                 </View>
-                                <Text style={styles.actionText}>ANC Schedule</Text>
+                                <Text style={styles.actionLabel}>ANC Schedule</Text>
                             </TouchableOpacity>
 
-                            <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
+                            <TouchableOpacity
+                                style={styles.actionItem}
+                                onPress={() => router.push({
+                                    pathname: '/dashboards/danger-signs' as any,
+                                    params: { phone: phone ?? '' }
+                                })}
+                            >
                                 <View style={[styles.iconBox, { backgroundColor: '#3A202A' }]}>
-                                    <Image source={require('../../../assets/icon_danger.png')} style={styles.actionImg} />
+                                    <Text style={styles.emojiIcon}>⚠️</Text>
                                 </View>
-                                <Text style={styles.actionText}>Danger Signs</Text>
+                                <Text style={styles.actionLabel}>Danger Signs</Text>
                             </TouchableOpacity>
 
-                            <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
+                            <TouchableOpacity
+                                style={styles.actionItem}
+                                onPress={() => router.push({
+                                    pathname: '/dashboards/nutrition' as any,
+                                    params: { phone: phone ?? '' }
+                                })}
+                            >
                                 <View style={[styles.iconBox, { backgroundColor: '#18332F' }]}>
-                                    <Image source={require('../../../assets/icon_nutrition.png')} style={styles.actionImg} />
+                                    <Text style={styles.emojiIcon}>🍏</Text>
                                 </View>
-                                <Text style={styles.actionText}>Nutrition</Text>
+                                <Text style={styles.actionLabel}>Nutrition</Text>
                             </TouchableOpacity>
 
-                            <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
+                            <TouchableOpacity
+                                style={styles.actionItem}
+                                onPress={() => router.push({
+                                    pathname: '/dashboards/baby-growth' as any,
+                                    params: { phone: phone ?? '' }
+                                })}
+                            >
                                 <View style={[styles.iconBox, { backgroundColor: '#2D1B36' }]}>
-                                    <Image source={require('../../../assets/icon_baby.png')} style={styles.actionImg} />
+                                    <Text style={styles.emojiIcon}>👶</Text>
                                 </View>
-                                <Text style={styles.actionText}>Baby Growth</Text>
+                                <Text style={styles.actionLabel}>Baby Growth</Text>
                             </TouchableOpacity>
                         </View>
                     </Animated.View>
 
                     {/* ── Next ANC Visit ── */}
-                    <Animated.View entering={FadeInUp.duration(500).delay(300)}>
-                        <Text style={styles.sectionTitle}>NEXT ANC VISIT</Text>
-                        <View style={styles.ancCard}>
-                            <View style={styles.ancHeader}>
-                                <View>
-                                    <Text style={styles.ancDate}>March 10, 2026</Text>
-                                    <Text style={styles.ancLocation}>📍 PHC Whitefield</Text>
+                    {nextVisit && (
+                        <Animated.View entering={FadeInDown.duration(500).delay(300)}>
+                            <Text style={styles.sectionTitle}>NEXT ANC VISIT</Text>
+                            <View style={styles.ancBox}>
+                                <View style={styles.ancHeaderRow}>
+                                    <View>
+                                        <Text style={styles.ancDate}>{nextVisit.date}</Text>
+                                        <Text style={styles.ancLocation}>📍 PHC Whitefield</Text>
+                                    </View>
+                                    <View style={styles.ancStetho}>
+                                        <Text style={styles.stethoIcon}>🩺</Text>
+                                    </View>
                                 </View>
-                                <View style={styles.ancIconBox}>
-                                    <Text style={styles.ancIcon}>🩺</Text>
-                                </View>
+                                <TouchableOpacity style={styles.reminderBtn}>
+                                    <Text style={styles.reminderBtnText}>🔔 Add Reminder</Text>
+                                </TouchableOpacity>
                             </View>
-                            <TouchableOpacity style={styles.addReminderBtn} activeOpacity={0.85}>
-                                <Text style={styles.addReminderText}>🔔  Add Reminder</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </Animated.View>
+                        </Animated.View>
+                    )}
 
                     {/* ── Today's Checklist ── */}
                     <Animated.View entering={FadeInUp.duration(500).delay(400)}>
                         <Text style={styles.sectionTitle}>TODAY'S CHECKLIST</Text>
-                        <View style={styles.checklistCard}>
-                            <View style={styles.checkItem}>
-                                <View style={styles.checkIconWrapper}><Text style={styles.checkEmoji}>💊</Text></View>
-                                <Text style={styles.checkText}>Iron tablet</Text>
-                                <View style={styles.circleCheck}><Text style={styles.circleTick}>✓</Text></View>
-                            </View>
-
-                            <View style={styles.divider} />
-
-                            <View style={styles.checkItem}>
-                                <View style={styles.checkIconWrapper}><Text style={styles.checkEmoji}>🧃</Text></View>
-                                <Text style={styles.checkText}>Folic Acid</Text>
-                                <View style={styles.circleCheck}><Text style={styles.circleTick}>✓</Text></View>
-                            </View>
-
-                            <View style={styles.divider} />
-
-                            <View style={styles.checkItem}>
-                                <View style={styles.checkIconWrapper}><Text style={styles.checkEmoji}>👣</Text></View>
-                                <Text style={styles.checkText}>10 kicks logged</Text>
-                                <View style={styles.circleCheck}><Text style={styles.circleTick}>✓</Text></View>
-                            </View>
+                        <View style={styles.checklist}>
+                            <CheckItem label="Iron tablet" emoji="💊" checked={true} />
+                            <CheckDivider />
+                            <CheckItem label="Folic Acid" emoji="🧃" checked={true} />
+                            <CheckDivider />
+                            <CheckItem label="10 kicks logged" emoji="👣" checked={true} />
                         </View>
                     </Animated.View>
 
-                    <View style={{ height: 100 }} />
+                    <View style={{ height: 120 }} />
                 </ScrollView>
 
                 {/* ── Bottom Nav ── */}
@@ -217,15 +269,15 @@ export default function PregnancyDashboard() {
                         <Text style={styles.navIconActive}>⌂</Text>
                         <Text style={styles.navTextActive}>HOME</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+                    <TouchableOpacity style={styles.navItem}>
                         <Text style={styles.navIcon}>📈</Text>
                         <Text style={styles.navText}>TRACKER</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+                    <TouchableOpacity style={styles.navItem}>
                         <Text style={styles.navIcon}>🔔</Text>
                         <Text style={styles.navText}>ALERTS</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
+                    <TouchableOpacity style={styles.navItem}>
                         <Text style={styles.navIcon}>🎧</Text>
                         <Text style={styles.navText}>SUPPORT</Text>
                     </TouchableOpacity>
@@ -236,77 +288,106 @@ export default function PregnancyDashboard() {
     );
 }
 
+// ─── Helper Components ────────────────────────────────────────────────────────
+function CheckItem({ label, emoji, checked }: { label: string; emoji: string; checked: boolean }) {
+    return (
+        <View style={styles.checkRow}>
+            <View style={styles.checkIconBox}>
+                <Text style={{ fontSize: 20 }}>{emoji}</Text>
+            </View>
+            <Text style={styles.checkLabel}>{label}</Text>
+            <View style={[styles.circleCheck, checked && styles.circleCheckActive]}>
+                <Text style={styles.circleCheckText}>✓</Text>
+            </View>
+        </View>
+    );
+}
+
+function CheckDivider() {
+    return <View style={styles.divider} />;
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0D1522' },
+    container: { flex: 1, backgroundColor: '#0B1320' },
     safeArea: { flex: 1 },
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: 20, paddingTop: 10 },
 
-    // Header
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 20,
-        marginBottom: 20,
+        paddingHorizontal: 10,
+        marginBottom: 24,
     },
-    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    appIcon: { width: 44, height: 44, borderRadius: 16, backgroundColor: '#2D1F2D', justifyContent: 'center', alignItems: 'center' },
-    appIconText: { fontSize: 20 },
-    greetingText: { color: '#F06292', fontSize: 13, fontWeight: '700', marginBottom: 2 },
-    headerTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
-    headerSub: { color: '#94A3B8', fontSize: 13, marginTop: 2 },
-    profileBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#1E293B', justifyContent: 'center', alignItems: 'center' },
-    profileIcon: { fontSize: 18 },
-
-    // Progress Card
-    progressCard: {
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    logoBox: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#2F1A2F', justifyContent: 'center', alignItems: 'center' },
+    logoIcon: { fontSize: 22 },
+    headerTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800' },
+    headerSubtitle: { color: '#94A3B8', fontSize: 13, marginTop: 2 },
+    profileBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         backgroundColor: '#1E293B',
-        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#334155'
+    },
+    profileIcon: { fontSize: 20, color: '#FFFFFF' },
+
+    // Stats Card
+    statsCard: {
+        backgroundColor: '#131D2D',
+        borderRadius: 32,
         padding: 24,
         marginBottom: 32,
+        borderWidth: 1,
+        borderColor: '#1E293B',
     },
-    weekRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -10, marginBottom: 20 },
-    weekText: { color: '#94A3B8', fontSize: 13, fontWeight: '600' },
-    daysWrapper: { alignItems: 'center' },
-    daysLabel: { color: '#64748B', fontSize: 14, fontWeight: '500', marginBottom: 4 },
-    daysValue: { color: '#F06292', fontSize: 24, fontWeight: '800' },
+    rangeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -20, marginBottom: 20 },
+    rangeText: { color: '#64748B', fontSize: 13, fontWeight: '600' },
+    dueCountdown: { alignItems: 'center' },
+    dueLabel: { color: '#94A3B8', fontSize: 15, fontWeight: '500', marginBottom: 6 },
+    dueValue: { color: '#F06292', fontSize: 32, fontWeight: '900' },
 
-    // Sections
-    sectionTitle: { color: '#94A3B8', fontSize: 13, fontWeight: '800', letterSpacing: 1.2, marginBottom: 16 },
+    sectionTitle: { color: '#64748B', fontSize: 12, fontWeight: '800', letterSpacing: 1.5, marginBottom: 16 },
 
-    // Grid
-    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 16, marginBottom: 32 },
-    actionCard: {
+    // Actions
+    actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, justifyContent: 'space-between', marginBottom: 32 },
+    actionItem: {
         width: '47%',
-        backgroundColor: '#162032',
-        borderRadius: 20,
+        backgroundColor: '#131D2D',
+        borderRadius: 24,
         padding: 20,
+        borderWidth: 1,
+        borderColor: '#1E293B',
     },
-    iconBox: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-    actionImg: { width: 22, height: 22 },
-    actionText: { color: '#F8FAFC', fontSize: 14, fontWeight: '700' },
+    iconBox: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+    emojiIcon: { fontSize: 22 },
+    actionLabel: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
 
-    // ANC Result Card
-    ancCard: { backgroundColor: '#162032', borderRadius: 20, padding: 20, marginBottom: 32 },
-    ancHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-    ancDate: { color: '#F06292', fontSize: 18, fontWeight: '800', marginBottom: 6 },
-    ancLocation: { color: '#94A3B8', fontSize: 14 },
-    ancIconBox: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#2D1F2D', justifyContent: 'center', alignItems: 'center' },
-    ancIcon: { fontSize: 20 },
-    addReminderBtn: { backgroundColor: '#F06292', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
-    addReminderText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+    // ANC Box
+    ancBox: { backgroundColor: '#131D2D', borderRadius: 24, padding: 24, marginBottom: 32, borderWidth: 1, borderColor: '#1E293B' },
+    ancHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+    ancDate: { color: '#F06292', fontSize: 20, fontWeight: '800', marginBottom: 4 },
+    ancLocation: { color: '#94A3B8', fontSize: 15 },
+    ancStetho: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#2F1A2F', justifyContent: 'center', alignItems: 'center' },
+    stethoIcon: { fontSize: 22 },
+    reminderBtn: { backgroundColor: '#F06292', borderRadius: 16, paddingVertical: 16, alignItems: 'center' },
+    reminderBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
 
     // Checklist
-    checklistCard: { backgroundColor: '#162032', borderRadius: 20, padding: 20, marginBottom: 24 },
-    checkItem: { flexDirection: 'row', alignItems: 'center' },
-    checkIconWrapper: { width: 32, justifyContent: 'center' },
-    checkEmoji: { fontSize: 18 },
-    checkText: { flex: 1, color: '#F8FAFC', fontSize: 15, fontWeight: '600', marginLeft: 8 },
-    circleCheck: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#3A202A', justifyContent: 'center', alignItems: 'center' },
-    circleTick: { color: '#F06292', fontSize: 12, fontWeight: '800' },
-    divider: { height: 1, backgroundColor: '#1E293B', marginVertical: 16 },
+    checklist: { backgroundColor: '#131D2D', borderRadius: 24, padding: 24, marginBottom: 24, borderWidth: 1, borderColor: '#1E293B' },
+    checkRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    checkIconBox: { width: 32, alignItems: 'center' },
+    checkLabel: { flex: 1, color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+    circleCheck: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#2D1F2D', justifyContent: 'center', alignItems: 'center' },
+    circleCheckActive: { backgroundColor: '#2D1F2D' },
+    circleCheckText: { color: '#F06292', fontSize: 14, fontWeight: '900' },
+    divider: { height: 1, backgroundColor: '#1E293B', marginVertical: 18 },
 
     // Bottom Nav
     bottomNav: {
@@ -315,13 +396,16 @@ const styles = StyleSheet.create({
         paddingHorizontal: 30,
         paddingTop: 16,
         paddingBottom: Platform.OS === 'ios' ? 24 : 16,
-        backgroundColor: '#111A2C',
+        backgroundColor: '#0D1522',
         borderTopWidth: 1,
         borderTopColor: '#1E293B',
+        position: 'absolute',
+        bottom: 0,
+        width: '100%',
     },
     navItem: { alignItems: 'center', gap: 4 },
-    navIconActive: { color: '#F06292', fontSize: 24 },
-    navTextActive: { color: '#F06292', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+    navIconActive: { color: '#F06292', fontSize: 26 },
+    navTextActive: { color: '#F06292', fontSize: 10, fontWeight: '800' },
     navIcon: { color: '#64748B', fontSize: 22 },
-    navText: { color: '#64748B', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+    navText: { color: '#64748B', fontSize: 10, fontWeight: '700' },
 });

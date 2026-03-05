@@ -89,7 +89,7 @@ export default function Step3Screen() {
             // Navigate to respective dashboard
             if (selected === 'pregnancy') {
                 router.replace({
-                    pathname: '/dashboards/pregnancy' as any,
+                    pathname: '/pregnancy-activation/step1' as any,
                     params: { phone: phone ?? '' }
                 });
             } else {

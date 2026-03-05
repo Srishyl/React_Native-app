@@ -44,10 +44,15 @@ export default function PatientLoginScreen() {
                 `INSERT OR REPLACE INTO patient_sessions (phone, otp, created_at) VALUES (?, ?, ?)`,
                 [phone.trim(), newOtp, new Date().toISOString()]
             );
-            // In production this would be sent via SMS
-            Alert.alert('OTP Sent', `Your OTP is: ${newOtp}\n(Demo mode — shown here for testing)`, [
-                { text: 'OK', onPress: () => setStep('otp') },
-            ]);
+
+            // Trigger Twilio WhatsApp Backend
+            fetch('http://192.168.219.59:3000/api/send-whatsapp-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: phone.trim(), otp: newOtp })
+            }).catch(err => console.error("Failed to call WhatsApp backend", err));
+
+            setStep('otp');
         } catch (e) {
             // Table may not exist yet; create it and retry
             try {
@@ -64,9 +69,15 @@ export default function PatientLoginScreen() {
                     `INSERT OR REPLACE INTO patient_sessions (phone, otp, created_at) VALUES (?, ?, ?)`,
                     [phone.trim(), newOtp, new Date().toISOString()]
                 );
-                Alert.alert('OTP Sent', `Your OTP is: ${newOtp}\n(Demo mode)`, [
-                    { text: 'OK', onPress: () => setStep('otp') },
-                ]);
+
+                // Trigger Twilio WhatsApp Backend
+                fetch('http://192.168.219.59:3000/api/send-whatsapp-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone: phone.trim(), otp: newOtp })
+                }).catch(err => console.error("Failed to call WhatsApp backend", err));
+
+                setStep('otp');
             } catch (err) {
                 Alert.alert('Error', 'Could not send OTP. Please try again.');
                 console.error(err);

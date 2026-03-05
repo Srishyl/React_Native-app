@@ -72,6 +72,9 @@ export default function HomeScreen() {
            <Link href="/testdb" style={{ marginTop: 20 }}>
               Go To DB Test
             </Link>
+          <Link href="/testdb" style={{ marginTop: 20 }}>
+            Go To DB Test
+          </Link>
 
           {/* Features Grid */}
           <Animated.View entering={FadeInUp.duration(800).delay(600)} style={styles.featuresSection}>
@@ -109,6 +112,16 @@ export default function HomeScreen() {
                 <ThemedText style={styles.featureTitle}>Emergency Connect</ThemedText>
                 <ThemedText style={styles.featureDesc}>One-tap SOS dispatch for mobile clinics and rural ambulance services.</ThemedText>
               </View>
+
+              <Link href="/symptom-triage" asChild>
+                <TouchableOpacity style={StyleSheet.flatten([styles.featureCard, { borderColor: '#2E7D32', borderWidth: 1 }])}>
+                  <View style={[styles.featureIconBox, { backgroundColor: '#E8F5E9' }]}>
+                    <ThemedText style={styles.featureIcon}>🩺</ThemedText>
+                  </View>
+                  <ThemedText style={styles.featureTitle}>AI Symptom Triage</ThemedText>
+                  <ThemedText style={styles.featureDesc}>Check your symptoms instantly using our AI-powered diagnostic tool.</ThemedText>
+                </TouchableOpacity>
+              </Link>
 
             </View>
           </Animated.View>

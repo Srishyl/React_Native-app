@@ -22,6 +22,7 @@ export default function DoctorProfileScreen() {
     const [booking, setBooking] = useState(false);
     const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
     const [patientPhone, setPatientPhone] = useState<string | null>(null);
+    const [patientId, setPatientId] = useState<number | null>(null);
 
     // Find the specific doctor from mock data
     const doctor = MOCK_DOCTORS.find(d => d.id === id);
@@ -32,9 +33,10 @@ export default function DoctorProfileScreen() {
             try {
                 // To keep it simple, we just grab the first profile since it's a single-user device usually.
                 // In a production app with auth, you'd use a secure global state or Context API.
-                const profile: any = await db.getFirstAsync('SELECT phone, care_mode FROM patient_profiles LIMIT 1');
+                const profile: any = await db.getFirstAsync('SELECT id, phone, care_mode FROM patient_profiles LIMIT 1');
                 if (profile && profile.phone) {
                     setPatientPhone(profile.phone);
+                    setPatientId(profile.id);
                 }
             } catch (err) {
                 console.error('Error fetching phone for booking:', err);
@@ -49,17 +51,21 @@ export default function DoctorProfileScreen() {
             return;
         }
 
-        if (!patientPhone) {
+        if (!patientPhone || !patientId) {
             Alert.alert('Error', 'Unable to retrieve your user profile. Please login again.');
             return;
         }
 
         setBooking(true);
         try {
-            // Make sure the appointments table exists (in case they haven't run db.js init again)
+            // Drop old structure so we can re-create with the new columns cleanly
+            await db.execAsync(`DROP TABLE IF EXISTS appointments;`);
+
             await db.execAsync(`
                 CREATE TABLE IF NOT EXISTS appointments (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    token_id TEXT NOT NULL,
+                    patient_id INTEGER NOT NULL,
                     patient_phone TEXT NOT NULL,
                     doctor_id TEXT NOT NULL,
                     doctor_name TEXT NOT NULL,
@@ -69,11 +75,16 @@ export default function DoctorProfileScreen() {
                 );
             `);
 
+            // Generate token sequence (e.g. token1, token2)
+            const countResult: any = await db.getFirstAsync('SELECT COUNT(*) as count FROM appointments');
+            const tokenCount = countResult ? countResult.count : 0;
+            const nextTokenId = `token${tokenCount + 1}`;
+
             // Insert the appointment
             await db.runAsync(
-                `INSERT INTO appointments (patient_phone, doctor_id, doctor_name, specialty, time, status) 
-                 VALUES (?, ?, ?, ?, ?, 'pending')`,
-                [patientPhone, doctor?.id || '', doctor?.name || '', doctor?.specialty || '', selectedSlot]
+                `INSERT INTO appointments(token_id, patient_id, patient_phone, doctor_id, doctor_name, specialty, time, status)
+            VALUES(?, ?, ?, ?, ?, ?, ?, 'pending')`,
+                [nextTokenId, patientId, patientPhone, doctor?.id || '', doctor?.name || '', doctor?.specialty || '', selectedSlot]
             );
 
             // Fetch care_mode to redirect safely to the correct dashboard

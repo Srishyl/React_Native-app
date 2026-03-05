@@ -79,9 +79,17 @@ export default function Step1Screen() {
         try {
             const now = new Date().toISOString();
             await db.runAsync(
-                `INSERT OR REPLACE INTO patient_profiles
+                `INSERT INTO patient_profiles
           (phone, full_name, age, gender, village, pincode, language_preference, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(phone) DO UPDATE SET
+          full_name = excluded.full_name,
+          age = excluded.age,
+          gender = excluded.gender,
+          village = excluded.village,
+          pincode = excluded.pincode,
+          language_preference = excluded.language_preference,
+          updated_at = excluded.updated_at`,
                 [
                     phone ?? '',
                     fullName.trim(),

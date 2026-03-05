@@ -230,6 +230,9 @@ export default function NormalDashboard() {
                                             <View style={styles.reminderInfo}>
                                                 <Text style={styles.reminderTitle}>{app.doctor_name}</Text>
                                                 <Text style={styles.reminderTime}>{app.specialty} at {app.time}</Text>
+                                                <Text style={{ fontSize: 11, color: '#3D8EFF', marginTop: 4, fontWeight: '600' }}>
+                                                    Token: {app.token_id || 'N/A'} • Pat ID: {app.patient_id || 'N/A'} • Doc: {app.doctor_id || 'N/A'}
+                                                </Text>
                                             </View>
                                             <TouchableOpacity
                                                 style={styles.startBtn}
@@ -260,6 +263,9 @@ export default function NormalDashboard() {
                                             <View style={styles.reminderInfo}>
                                                 <Text style={[styles.reminderTitle, { textDecorationLine: 'line-through', color: '#6B8BAE' }]}>{app.doctor_name}</Text>
                                                 <Text style={styles.reminderTime}>{app.specialty} at {app.time}</Text>
+                                                <Text style={{ fontSize: 11, color: '#6B8BAE', marginTop: 4, fontWeight: '600' }}>
+                                                    Token: {app.token_id || 'N/A'} • Pat ID: {app.patient_id || 'N/A'} • Doc: {app.doctor_id || 'N/A'}
+                                                </Text>
                                             </View>
                                             <Text style={styles.statusDone}>Completed</Text>
                                         </View>

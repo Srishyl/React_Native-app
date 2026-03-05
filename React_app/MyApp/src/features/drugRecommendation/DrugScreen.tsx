@@ -1,15 +1,7 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-  Platform
-} from "react-native";
+import { Text, TextInput } from '@/components/AppText';
+
+import { View, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert, Platform } from 'react-native';
 import { getDrugRecommendation } from "./drugService";
 
 // ─── Dropdown Component ──────────────────────────────────────────────────────

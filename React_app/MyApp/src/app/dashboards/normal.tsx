@@ -1,13 +1,7 @@
 import React from 'react';
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    StyleSheet,
-    ScrollView,
-    StatusBar,
-    Platform,
-} from 'react-native';
+import { Text } from '@/components/AppText';
+
+import { View, TouchableOpacity, StyleSheet, ScrollView, StatusBar, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Image } from 'expo-image';

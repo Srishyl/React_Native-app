@@ -1,15 +1,7 @@
 import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    StyleSheet,
-    ScrollView,
-    StatusBar,
-    Alert,
-    Platform,
-} from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
+
+import { View, TouchableOpacity, StyleSheet, ScrollView, StatusBar, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter, useLocalSearchParams } from 'expo-router';

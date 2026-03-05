@@ -1,17 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
     View,
-    Text,
     TouchableOpacity,
     StyleSheet,
     ScrollView,
     StatusBar,
     Platform,
+    Alert,
 } from 'react-native';
+import { Text } from '@/components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Image } from 'expo-image';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import db from '../../database/db';
 
 // ─── Progress Ring Component ──────────────────────────────────────────────────
@@ -78,50 +79,52 @@ export default function PregnancyDashboard() {
     const [stats, setStats] = useState({ week: 1, daysLeft: 280, fruit: 'raspberry 🫐' });
     const [nextVisit, setNextVisit] = useState<any>(null);
 
-    useEffect(() => {
-        async function loadData() {
-            if (!phone) return;
-            try {
-                // Fetch patient name
-                const user: any = await db.getFirstAsync(
-                    'SELECT full_name FROM patient_profiles WHERE phone = ?',
-                    [phone]
-                );
-                if (user && user.full_name) setPatientName(user.full_name.split(' ')[0]);
+    useFocusEffect(
+        React.useCallback(() => {
+            async function loadData() {
+                if (!phone) return;
+                try {
+                    // Fetch patient name
+                    const user: any = await db.getFirstAsync(
+                        'SELECT full_name FROM patient_profiles WHERE phone = ?',
+                        [phone]
+                    );
+                    if (user && user.full_name) setPatientName(user.full_name.split(' ')[0]);
 
-                // Fetch pregnancy record
-                const preg: any = await db.getFirstAsync(
-                    'SELECT edd, pregnancy_start_date FROM pregnancy_records WHERE phone = ?',
-                    [phone]
-                );
+                    // Fetch pregnancy record
+                    const preg: any = await db.getFirstAsync(
+                        'SELECT edd, pregnancy_start_date FROM pregnancy_records WHERE phone = ?',
+                        [phone]
+                    );
 
-                if (preg && preg.edd) {
-                    const { calculatePregnancyStats } = require('../../utils/pregnancy');
-                    const pStats = calculatePregnancyStats(preg.edd);
-                    setStats({
-                        week: pStats.currentWeek,
-                        daysLeft: pStats.daysRemaining,
-                        fruit: pStats.babySize
-                    });
+                    if (preg && preg.edd) {
+                        const { calculatePregnancyStats } = require('../../utils/pregnancy');
+                        const pStats = calculatePregnancyStats(preg.edd);
+                        setStats({
+                            week: pStats.currentWeek,
+                            daysLeft: pStats.daysRemaining,
+                            fruit: pStats.babySize
+                        });
+                    }
+
+                    // Fetch next ANC visit
+                    const visit: any = await db.getFirstAsync(
+                        "SELECT scheduled_date FROM anc_visits WHERE phone = ? AND status = 'upcoming' ORDER BY scheduled_date ASC",
+                        [phone]
+                    );
+                    if (visit) {
+                        const d = new Date(visit.scheduled_date);
+                        const formattedDate = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                        setNextVisit({ date: formattedDate });
+                    }
+
+                } catch (err) {
+                    console.error('Failed to load pregnancy data:', err);
                 }
-
-                // Fetch next ANC visit
-                const visit: any = await db.getFirstAsync(
-                    "SELECT scheduled_date FROM anc_visits WHERE phone = ? AND status = 'upcoming' ORDER BY scheduled_date ASC",
-                    [phone]
-                );
-                if (visit) {
-                    const d = new Date(visit.scheduled_date);
-                    const formattedDate = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-                    setNextVisit({ date: formattedDate });
-                }
-
-            } catch (err) {
-                console.error('Failed to load pregnancy data:', err);
             }
-        }
-        loadData();
-    }, [phone]);
+            loadData();
+        }, [phone])
+    );
 
     const navigateToProfile = () => {
         router.push({
@@ -142,12 +145,33 @@ export default function PregnancyDashboard() {
                             <Text style={styles.logoIcon}>🍃</Text>
                         </View>
                         <View>
+                            <Text style={styles.greetingText}>Hi {patientName},</Text>
                             <Text style={styles.headerTitle}>Week {stats.week} of Pregnancy 🌸</Text>
                             <Text style={styles.headerSubtitle}>Your baby is the size of a {stats.fruit}</Text>
+                            <TouchableOpacity
+                                style={{ backgroundColor: '#2D1F2D', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, marginTop: 8 }}
+                                onPress={async () => {
+                                    if (phone) {
+                                        await db.runAsync("UPDATE patient_profiles SET care_mode = 'normal' WHERE phone = ?", [phone]);
+                                        router.replace({ pathname: '/dashboards/normal' as any, params: { phone } });
+                                    }
+                                }}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={{ color: '#3D8EFF', fontSize: 11, fontWeight: '700' }}>💼 Switch Home</Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
-                    <TouchableOpacity style={styles.profileBtn} onPress={navigateToProfile}>
-                        <Text style={styles.profileIcon}>👤</Text>
+                    <TouchableOpacity
+                        style={styles.profileBtn}
+                        onPress={() => {
+                            Alert.alert('Logout', 'Are you sure you want to logout?', [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Logout', style: 'destructive', onPress: () => router.replace('/' as any) }
+                            ]);
+                        }}
+                    >
+                        <Text style={styles.profileIcon}>🚪</Text>
                     </TouchableOpacity>
                 </Animated.View>
 
@@ -352,6 +376,7 @@ const styles = StyleSheet.create({
     dueCountdown: { alignItems: 'center' },
     dueLabel: { color: '#94A3B8', fontSize: 15, fontWeight: '500', marginBottom: 6 },
     dueValue: { color: '#F06292', fontSize: 32, fontWeight: '900' },
+    greetingText: { color: '#F06292', fontSize: 13, fontWeight: '700', marginBottom: 2 },
 
     sectionTitle: { color: '#64748B', fontSize: 12, fontWeight: '800', letterSpacing: 1.5, marginBottom: 16 },
 

@@ -1,5 +1,7 @@
 import React from 'react';
-import { View, Text, Button } from 'react-native';
+import { Text } from '@/components/AppText';
+
+import { View, Button } from 'react-native';
 import { useRouter } from 'expo-router';
 import db from '../database/db';
 

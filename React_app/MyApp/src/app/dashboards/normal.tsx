@@ -1,17 +1,19 @@
-import React from 'react';
+import { Text } from '@/components/AppText';
+
 import {
     View,
-    Text,
     TouchableOpacity,
     StyleSheet,
     ScrollView,
     StatusBar,
     Platform,
+    Alert,
 } from 'react-native';
+import * as React from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Image } from 'expo-image';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import db from '../../database/db';
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -19,24 +21,61 @@ export default function NormalDashboard() {
     const router = useRouter();
     const { phone } = useLocalSearchParams<{ phone: string }>();
     const [patientName, setPatientName] = React.useState('Patient');
+    const [appointments, setAppointments] = React.useState<any[]>([]);
+    const [completedAppointments, setCompletedAppointments] = React.useState<any[]>([]);
 
-    React.useEffect(() => {
-        async function loadUser() {
-            if (!phone) return;
-            try {
-                const row: any = await db.getFirstAsync(
-                    'SELECT full_name FROM patient_profiles WHERE phone = ?',
-                    [phone]
-                );
-                if (row && row.full_name) {
-                    setPatientName(row.full_name.split(' ')[0]);
+    useFocusEffect(
+        React.useCallback(() => {
+            async function loadUser() {
+                if (!phone) return;
+                try {
+                    const row: any = await db.getFirstAsync(
+                        'SELECT full_name FROM patient_profiles WHERE phone = ?',
+                        [phone]
+                    );
+                    if (row && row.full_name) {
+                        setPatientName(row.full_name.split(' ')[0]);
+                    }
+
+                    // Also fetch any pending AND completed appointments
+                    try {
+                        const apps: any = await db.getAllAsync(
+                            "SELECT * FROM appointments WHERE patient_phone = ? AND status = 'pending' ORDER BY id DESC",
+                            [phone]
+                        );
+                        setAppointments(apps || []);
+
+                        const completedApps: any = await db.getAllAsync(
+                            "SELECT * FROM appointments WHERE patient_phone = ? AND status = 'done' ORDER BY id DESC LIMIT 5",
+                            [phone]
+                        );
+                        setCompletedAppointments(completedApps || []);
+                    } catch (e) {
+                        setAppointments([]);
+                        setCompletedAppointments([]);
+                    }
+
+                } catch (err) {
+                    console.error('Failed to load user info:', err);
                 }
-            } catch (err) {
-                console.error('Failed to load user info:', err);
             }
+            loadUser();
+        }, [phone])
+    );
+
+    const handleMarkDone = async (appId: number) => {
+        try {
+            await db.runAsync('UPDATE appointments SET status = ? WHERE id = ?', ['done', appId]);
+            // Move item from appointments to completedAppointments
+            const finishedApp = appointments.find(a => a.id === appId);
+            if (finishedApp) {
+                setAppointments(prev => prev.filter(app => app.id !== appId));
+                setCompletedAppointments(prev => [{ ...finishedApp, status: 'done' }, ...prev]);
+            }
+        } catch (error) {
+            console.error('Failed to mark done:', error);
         }
-        loadUser();
-    }, [phone]);
+    };
 
     return (
         <View style={styles.container}>
@@ -53,24 +92,33 @@ export default function NormalDashboard() {
                             <Text style={styles.menuIcon}>≡</Text>
                         </TouchableOpacity>
                         <Text style={styles.phcId}>PHC-KA-2024-483921</Text>
-                        <TouchableOpacity style={styles.qrBtn}>
-                            <Text style={styles.qrIcon}>📱</Text>
+                        <TouchableOpacity
+                            style={styles.qrBtn}
+                            onPress={() => {
+                                Alert.alert('Logout', 'Are you sure you want to logout?', [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    { text: 'Logout', style: 'destructive', onPress: () => router.replace('/' as any) }
+                                ]);
+                            }}
+                        >
+                            <Text style={styles.qrIcon}>🚪</Text>
                         </TouchableOpacity>
                     </Animated.View>
 
                     {/* ── Greeting ── */}
                     <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.greetingSection}>
                         <Text style={styles.greetingText}>Good morning,{'\n'}{patientName} 👋</Text>
-                        <View style={styles.greetingHeaderRow}>
-                            <Text style={styles.greetingSub}>How are you feeling today?</Text>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                            <Text style={[styles.greetingSub, { marginTop: 0 }]}>How are you feeling today?</Text>
                             <TouchableOpacity
-                                style={styles.switchModeBtn}
+                                style={{ backgroundColor: '#1E293B', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: '#334155' }}
                                 onPress={() => router.push({
                                     pathname: '/pregnancy-activation/step1' as any,
                                     params: { phone: phone ?? '' }
                                 })}
+                                activeOpacity={0.8}
                             >
-                                <Text style={styles.switchModeText}>Switch to Pregnancy Mode ›</Text>
+                                <Text style={{ color: '#F06292', fontSize: 12, fontWeight: '700' }}>🤰 Pregnancy Mode ›</Text>
                             </TouchableOpacity>
                         </View>
                     </Animated.View>
@@ -94,7 +142,11 @@ export default function NormalDashboard() {
                         </TouchableOpacity>
 
                         {/* Action Card 2: Find PHC */}
-                        <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
+                        < TouchableOpacity
+                            style={styles.actionCard}
+                            activeOpacity={0.8}
+                            onPress={() => router.push('/find-phc' as any)}
+                        >
                             <View style={[styles.iconBox, { backgroundColor: '#E8F1FE' }]}>
                                 <Image
                                     source={require('../../../assets/icon_find_phc.png')}
@@ -103,10 +155,10 @@ export default function NormalDashboard() {
                                 />
                             </View>
                             <Text style={styles.actionText}>Find PHC</Text>
-                        </TouchableOpacity>
+                        </TouchableOpacity >
 
                         {/* Action Card 3: My Records */}
-                        <TouchableOpacity style={styles.actionCard} activeOpacity={0.8}>
+                        < TouchableOpacity style={styles.actionCard} activeOpacity={0.8} >
                             <View style={[styles.iconBox, { backgroundColor: '#E8F1FE' }]}>
                                 <Image
                                     source={require('../../../assets/icon_my_records.png')}
@@ -115,10 +167,10 @@ export default function NormalDashboard() {
                                 />
                             </View>
                             <Text style={styles.actionText}>My Records</Text>
-                        </TouchableOpacity>
+                        </TouchableOpacity >
 
                         {/* Action Card 4: Medicines */}
-                        <TouchableOpacity
+                        < TouchableOpacity
                             style={styles.actionCard}
                             activeOpacity={0.8}
                             onPress={() => router.push('/drug-recommendation' as any)}
@@ -131,73 +183,105 @@ export default function NormalDashboard() {
                                 />
                             </View>
                             <Text style={styles.actionText}>Medicines</Text>
-                        </TouchableOpacity>
-                    </Animated.View>
+                        </TouchableOpacity >
+                    </Animated.View >
 
                     {/* ── Nearest PHC ── */}
-                    <Animated.View entering={FadeInUp.duration(500).delay(300)} style={styles.section}>
+                    < Animated.View entering={FadeInUp.duration(500).delay(300)} style={styles.section} >
                         <Text style={styles.sectionTitle}>Nearest PHC</Text>
                         <View style={styles.phcCard}>
                             <View style={styles.phcHeaderRow}>
-                                <Text style={styles.phcName}>PHC Whitefield</Text>
+                                <Text style={styles.phcName}>Locate Facilities</Text>
                                 <View style={styles.openBadge}>
-                                    <Text style={styles.openText}>OPEN</Text>
+                                    <Text style={styles.openText}>LIVE</Text>
                                 </View>
                             </View>
-                            <Text style={styles.phcDistance}>📍 1.2 km away</Text>
 
-                            <View style={styles.phcDetails}>
-                                <Text style={styles.phcDetailItem}>🟢 12 patients waiting</Text>
-                                <Text style={styles.phcDetailItem}>🩺 1 doctor available</Text>
-                            </View>
+                            <Text style={[styles.phcDistance, { marginTop: 4, marginBottom: 16 }]}>
+                                Use your GPS to find the nearest primary health centers and clinics.
+                            </Text>
 
-                            <TouchableOpacity style={styles.bookTokenBtn} activeOpacity={0.85}>
-                                <Text style={styles.bookTokenText}>🎟️ Book Token</Text>
+                            <TouchableOpacity
+                                style={styles.bookTokenBtn}
+                                activeOpacity={0.85}
+                                onPress={() => router.push('/find-phc' as any)}
+                            >
+                                <Text style={styles.bookTokenText}>📍 Start Search</Text>
                             </TouchableOpacity>
                         </View>
-                    </Animated.View>
+                    </Animated.View >
 
-                    {/* ── Your Reminders Today ── */}
-                    <Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.section}>
-                        <Text style={styles.sectionTitle}>Your Reminders Today</Text>
+                    {/* ── Your Tokens ── */}
+                    < Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.section} >
+                        <Text style={styles.sectionTitle}>Your Tokens</Text>
                         <View style={styles.remindersCard}>
-
-                            {/* Reminder 1 */}
-                            <View style={styles.reminderRow}>
-                                <View style={styles.reminderIconDone}>
-                                    <Text style={styles.reminderCheck}>✓</Text>
+                            {appointments.length === 0 ? (
+                                <View style={{ padding: 10, alignItems: 'center' }}>
+                                    <Text style={{ color: '#9BB4D0', fontSize: 14 }}>No upcoming appointments booked.</Text>
                                 </View>
-                                <View style={styles.reminderInfo}>
-                                    <Text style={styles.reminderTitle}>Pill reminder at 8am</Text>
-                                    <Text style={styles.reminderTime}>Taken at 08:05 AM</Text>
-                                </View>
-                                <Text style={styles.statusDone}>Done</Text>
-                            </View>
-
-                            <View style={styles.divider} />
-
-                            {/* Reminder 2 */}
-                            <View style={styles.reminderRow}>
-                                <View style={styles.reminderIconUrgent}>
-                                    <Text style={styles.reminderAlert}>*</Text>
-                                </View>
-                                <View style={styles.reminderInfo}>
-                                    <Text style={styles.reminderTitle}>BP check due</Text>
-                                    <Text style={styles.reminderUrgentText}>Urgent Action Required</Text>
-                                </View>
-                                <TouchableOpacity style={styles.startBtn} activeOpacity={0.8}>
-                                    <Text style={styles.startBtnText}>Start</Text>
-                                </TouchableOpacity>
-                            </View>
-
+                            ) : (
+                                appointments.map((app, index) => (
+                                    <React.Fragment key={app.id}>
+                                        <View style={styles.reminderRow}>
+                                            <View style={styles.reminderIconUrgent}>
+                                                <Text style={styles.reminderAlert}>📅</Text>
+                                            </View>
+                                            <View style={styles.reminderInfo}>
+                                                <Text style={styles.reminderTitle}>{app.doctor_name}</Text>
+                                                <Text style={styles.reminderTime}>{app.specialty} at {app.time}</Text>
+                                                <Text style={{ fontSize: 11, color: '#3D8EFF', marginTop: 4, fontWeight: '600' }}>
+                                                    Token: {app.token_id || 'N/A'} • Pat ID: {app.patient_id || 'N/A'} • Doc: {app.doctor_id || 'N/A'}
+                                                </Text>
+                                            </View>
+                                            <TouchableOpacity
+                                                style={styles.startBtn}
+                                                activeOpacity={0.8}
+                                                onPress={() => handleMarkDone(app.id)}
+                                            >
+                                                <Text style={styles.startBtnText}>Done</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                        {index < appointments.length - 1 && <View style={styles.divider} />}
+                                    </React.Fragment>
+                                ))
+                            )}
                         </View>
-                    </Animated.View>
+                    </Animated.View >
+
+                    {/* ── Completed Tokens ── */}
+                    {
+                        completedAppointments.length > 0 && (
+                            <Animated.View entering={FadeInUp.duration(500).delay(500)} style={styles.section}>
+                                <Text style={styles.sectionTitle}>Completed Tokens</Text>
+                                <View style={styles.remindersCard}>
+                                    {completedAppointments.map((app, index) => (
+                                        <React.Fragment key={app.id}>
+                                            <View style={[styles.reminderRow, { opacity: 0.7 }]}>
+                                                <View style={styles.reminderIconDone}>
+                                                    <Text style={styles.reminderCheck}>✓</Text>
+                                                </View>
+                                                <View style={styles.reminderInfo}>
+                                                    <Text style={[styles.reminderTitle, { textDecorationLine: 'line-through', color: '#6B8BAE' }]}>{app.doctor_name}</Text>
+                                                    <Text style={styles.reminderTime}>{app.specialty} at {app.time}</Text>
+                                                    <Text style={{ fontSize: 11, color: '#6B8BAE', marginTop: 4, fontWeight: '600' }}>
+                                                        Token: {app.token_id || 'N/A'} • Pat ID: {app.patient_id || 'N/A'} • Doc: {app.doctor_id || 'N/A'}
+                                                    </Text>
+                                                </View>
+                                                <Text style={styles.statusDone}>Completed</Text>
+                                            </View>
+                                            {index < completedAppointments.length - 1 && <View style={styles.divider} />}
+                                        </React.Fragment>
+                                    ))}
+                                </View>
+                            </Animated.View>
+                        )
+                    }
 
                     <View style={{ height: 100 }} />
-                </ScrollView>
+                </ScrollView >
 
                 {/* ── Bottom Navigation Bar ── */}
-                <View style={styles.bottomNav}>
+                < View style={styles.bottomNav} >
                     <TouchableOpacity style={styles.navItem} activeOpacity={1}>
                         <Text style={styles.navIconActive}>⌂</Text>
                         <Text style={styles.navTextActive}>Home</Text>
@@ -221,9 +305,9 @@ export default function NormalDashboard() {
                         <Text style={styles.navIcon}>👤</Text>
                         <Text style={styles.navText}>Profile</Text>
                     </TouchableOpacity>
-                </View>
-            </SafeAreaView>
-        </View>
+                </View >
+            </SafeAreaView >
+        </View >
     );
 }
 

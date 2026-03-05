@@ -1,61 +1,138 @@
 import React, { useState } from 'react';
 import { Text, TextInput } from '@/components/AppText';
 
-import { StyleSheet, View, TouchableOpacity, ScrollView, StatusBar, Platform } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, ScrollView, StatusBar, Platform, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-
-// Dummy patient data based on HTML
-const PATIENTS = [
-    {
-        id: '1',
-        name: 'Priya Sharma',
-        statusLabel: 'Normal',
-        statusColor: '#10B981', // Green
-        statusBg: '#D1FAE5',
-        imageUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150',
-        indicators: ['Week 28', 'Last seen 5d ago'],
-    },
-    {
-        id: '2',
-        name: 'Meena K.',
-        statusLabel: 'HIGH RISK',
-        statusColor: '#FFFFFF', // White text
-        statusBg: '#EF4444', // Red bg
-        imageUrl: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=150',
-        indicators: ['Week 34', 'Last seen 18d ago (warning)'],
-        isHighRisk: true,
-    },
-    {
-        id: '3',
-        name: 'Sunita B.',
-        statusLabel: 'Pending Review',
-        statusColor: '#B45309', // Yellow-700
-        statusBg: '#FEF3C7',
-        imageUrl: 'https://images.unsplash.com/photo-1589156280159-27698a70f29e?auto=format&fit=crop&w=150',
-        indicators: ['Week 22', 'Needs Verification'],
-    },
-    {
-        id: '4',
-        name: 'Ravi Kumar',
-        statusLabel: 'Watch',
-        statusColor: '#EA580C',
-        statusBg: '#FFEDD5',
-        imageUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150',
-        indicators: [],
-        condition: 'Hypertension',
-        metric: '160/100',
-        action: 'Follow-up required',
-    },
-];
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import * as Location from 'expo-location';
+import db from '../database/db';
 
 const FILTERS = ['All', 'Pregnant', 'High Risk', 'Not Visited 30d'];
 
+function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+}
+
 export default function PatientListScreen() {
     const router = useRouter();
+    const { workerName, workerRole, workerId, workerPincode, workerLat, workerLon } =
+        useLocalSearchParams<{ workerName: string, workerRole: string, workerId: string, workerPincode: string, workerLat: string, workerLon: string }>();
+
     const [search, setSearch] = useState('');
     const [activeFilter, setActiveFilter] = useState('All');
+    const [patients, setPatients] = useState<any[]>([]);
+    const [detectingLoc, setDetectingLoc] = useState(false);
+
+    // useRef so the interval always gets the latest version of the fetch function
+    // (fixes stale closure bug from empty dependency array)
+    const fetchRef = React.useRef<(showErrorAlert?: boolean) => void>(() => { });
+
+    const fetchNearbyPatients = async (showErrorAlert = false) => {
+        setDetectingLoc(true);
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                if (showErrorAlert) Alert.alert('Permission Denied', 'Location permission is required to detect nearby patients.');
+                setDetectingLoc(false);
+                return;
+            }
+
+            const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            // Use fresh GPS coords if available, fall back to params passed from login
+            const lat = location.coords.latitude || (workerLat ? parseFloat(workerLat) : null);
+            const lon = location.coords.longitude || (workerLon ? parseFloat(workerLon) : null);
+            const wPincode = workerPincode ? workerPincode.trim() : '';
+
+            const allPatients: any = await db.getAllAsync(
+                'SELECT phone, full_name, age, gender, village, pincode, care_mode, latitude, longitude FROM patient_profiles'
+            );
+
+            const nearbyPatients = allPatients
+                .map((p: any) => {
+                    let matchedByGps = false;
+                    let matchedByPincode = false;
+                    let distanceKm: number | null = null;
+
+                    // GPS match: within 5km
+                    if (lat && lon && p.latitude && p.longitude) {
+                        distanceKm = getDistanceFromLatLonInKm(lat, lon, p.latitude, p.longitude);
+                        if (distanceKm <= 5) matchedByGps = true;
+                    }
+
+                    // Pincode match: same pincode string
+                    if (wPincode && p.pincode && p.pincode.trim() === wPincode) {
+                        matchedByPincode = true;
+                    }
+
+                    return { ...p, matchedByGps, matchedByPincode, distanceKm };
+                })
+                .filter((p: any) => p.matchedByGps || p.matchedByPincode)
+                .map((p: any) => {
+                    // Build a match label for the card
+                    const matchReasons: string[] = [];
+                    if (p.matchedByGps && p.distanceKm !== null)
+                        matchReasons.push(`📍 ${p.distanceKm.toFixed(1)} km`);
+                    if (p.matchedByPincode)
+                        matchReasons.push(`📮 Pincode ${p.pincode}`);
+
+                    return {
+                        id: p.phone || Math.random().toString(),
+                        name: p.full_name || 'Unknown',
+                        statusLabel: p.care_mode === 'pregnancy' ? 'Pregnant' : 'Normal',
+                        statusColor: p.care_mode === 'pregnancy' ? '#EF4444' : '#10B981',
+                        statusBg: p.care_mode === 'pregnancy' ? '#FEE2E2' : '#D1FAE5',
+                        imageUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150',
+                        indicators: [p.age ? `${p.age} years` : '', p.village ? `from ${p.village}` : ''],
+                        matchLabel: matchReasons.join('  ·  '),
+                        isHighRisk: p.care_mode === 'pregnancy',
+                        condition: '',
+                        metric: '',
+                        action: ''
+                    };
+                });
+
+            setPatients(nearbyPatients);
+            if (nearbyPatients.length === 0 && showErrorAlert) {
+                Alert.alert('No Patients Found', `No patients found within 5km or matching pincode "${wPincode}" of your location.`);
+            }
+        } catch (error) {
+            console.error('Location detection failed:', error);
+            if (showErrorAlert) Alert.alert('Error', 'Failed to detect location or fetch data.');
+        } finally {
+            setDetectingLoc(false);
+        }
+    };
+
+    const handleDetectLocation = () => fetchNearbyPatients(true);
+
+    // Keep the ref up-to-date on every render so the interval always calls
+    // the freshest version (with the latest workerPincode / workerLat / workerLon)
+    React.useEffect(() => {
+        fetchRef.current = fetchNearbyPatients;
+    });
+
+    useFocusEffect(
+        React.useCallback(() => {
+            // Immediately fetch when the screen comes into focus
+            fetchRef.current(false);
+
+            // Poll every 5 seconds — new patient profiles will appear in near-realtime
+            const interval = setInterval(() => {
+                fetchRef.current(false);
+            }, 5000);
+
+            return () => clearInterval(interval);
+        }, []) // empty deps is correct here because we use fetchRef
+    );
 
     return (
         <View style={styles.container}>
@@ -64,11 +141,18 @@ export default function PatientListScreen() {
 
                 {/* Header */}
                 <View style={styles.headerRow}>
-                    <TouchableOpacity style={styles.iconButton} onPress={() => router.back()}>
-                        <Text style={styles.iconText}>☰</Text>
+                    <TouchableOpacity style={styles.iconButton} onPress={() => {
+                        Alert.alert('Logout', 'Are you sure you want to logout?', [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Logout', style: 'destructive', onPress: () => router.replace('/' as any) }
+                        ]);
+                    }}>
+                        <Text style={styles.iconText}>🚪</Text>
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Patient Registry</Text>
-                    <View style={{ flex: 1 }} />
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={styles.headerTitle}>{workerName || 'Asha Worker'}</Text>
+                        <Text style={styles.workerSub}>{workerRole || 'Worker'} • ID: {workerId || 'N/A'}</Text>
+                    </View>
                     <TouchableOpacity style={styles.iconButton}>
                         <Text style={styles.iconText}>🔔</Text>
                     </TouchableOpacity>
@@ -76,6 +160,25 @@ export default function PatientListScreen() {
                         source={{ uri: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=100' }}
                         style={styles.avatar}
                     />
+                </View>
+
+                {/* Detect Location Banner */}
+                <View style={{ paddingHorizontal: 16, marginTop: 4, marginBottom: 8 }}>
+                    <TouchableOpacity
+                        style={styles.detectBtn}
+                        onPress={handleDetectLocation}
+                        disabled={detectingLoc}
+                        activeOpacity={0.8}
+                    >
+                        {detectingLoc ? (
+                            <ActivityIndicator color="#ffffff" />
+                        ) : (
+                            <>
+                                <Text style={styles.detectIcon}>📍</Text>
+                                <Text style={styles.detectText}>Detect Nearby Patients</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
                 </View>
 
                 {/* Search */}
@@ -109,45 +212,66 @@ export default function PatientListScreen() {
 
                 {/* Patient List */}
                 <ScrollView contentContainerStyle={styles.listContainer} showsVerticalScrollIndicator={false}>
-                    {PATIENTS.map((p) => (
-                        <TouchableOpacity key={p.id} style={[styles.card, p.isHighRisk && styles.cardHighRisk]} activeOpacity={0.8}>
-                            <View style={styles.cardAvatarContainer}>
-                                <Image source={{ uri: p.imageUrl }} style={[styles.cardAvatar, p.isHighRisk && styles.cardAvatarHighRisk]} />
-                                <View style={[styles.statusDot, { backgroundColor: p.isHighRisk ? '#EF4444' : (p.statusColor === '#B45309' ? '#EAB308' : '#10B981') }]} />
-                            </View>
-
-                            <View style={styles.cardContent}>
-                                <View style={styles.cardHeader}>
-                                    <Text style={styles.cardName}>{p.name}</Text>
-                                    <View style={[styles.badge, { backgroundColor: p.statusBg }]}>
-                                        <Text style={[styles.badgeText, { color: p.statusColor }]}>{p.statusLabel}</Text>
-                                    </View>
+                    {patients.length === 0 ? (
+                        <View style={{ alignItems: 'center', marginTop: 40, paddingHorizontal: 20 }}>
+                            <Text style={{ color: '#94a3b8', fontSize: 16 }}>No patients loaded.</Text>
+                            <Text style={{ color: '#94a3b8', fontSize: 13, marginTop: 8, textAlign: 'center' }}>Tap "Detect Nearby Patients" up top to fetch patients locally.</Text>
+                        </View>
+                    ) : (
+                        patients.filter(p => {
+                            if (activeFilter === 'All') return true;
+                            if (activeFilter === 'Pregnant') return p.statusLabel === 'Pregnant';
+                            if (activeFilter === 'High Risk') return p.isHighRisk;
+                            if (activeFilter === 'Not Visited 30d') return true; // Stub for now
+                            return true;
+                        }).map((p) => (
+                            <TouchableOpacity key={p.id} style={[styles.card, p.isHighRisk && styles.cardHighRisk]} activeOpacity={0.8}
+                                onPress={() => router.push({ pathname: '/worker-patient-detail' as any, params: { phone: p.id } })}>
+                                <View style={styles.cardAvatarContainer}>
+                                    <Image source={{ uri: p.imageUrl }} style={[styles.cardAvatar, p.isHighRisk && styles.cardAvatarHighRisk]} />
+                                    <View style={[styles.statusDot, { backgroundColor: p.isHighRisk ? '#EF4444' : (p.statusColor === '#B45309' ? '#EAB308' : '#10B981') }]} />
                                 </View>
 
-                                {p.condition ? (
-                                    <View style={styles.conditionBlock}>
-                                        <Text style={styles.conditionText}>{p.condition}</Text>
-                                        <View style={styles.metricRow}>
-                                            <View style={styles.metricBadge}>
-                                                <Text style={styles.metricText}>{p.metric}</Text>
-                                            </View>
-                                            <Text style={styles.actionText}>{p.action}</Text>
+                                <View style={styles.cardContent}>
+                                    <View style={styles.cardHeader}>
+                                        <Text style={styles.cardName}>{p.name}</Text>
+                                        <View style={[styles.badge, { backgroundColor: p.statusBg }]}>
+                                            <Text style={[styles.badgeText, { color: p.statusColor }]}>{p.statusLabel}</Text>
                                         </View>
                                     </View>
-                                ) : (
-                                    <View style={styles.indicatorRow}>
-                                        {p.indicators.map((ind, i) => (
-                                            <Text key={i} style={[styles.indicatorText, ind.includes('warning') && styles.indicatorWarning]}>
-                                                {ind.replace(' (warning)', '')}
-                                            </Text>
-                                        ))}
-                                    </View>
-                                )}
-                            </View>
 
-                            <Text style={styles.chevron}>›</Text>
-                        </TouchableOpacity>
-                    ))}
+                                    {/* Match reason row */}
+                                    {p.matchLabel ? (
+                                        <View style={styles.matchRow}>
+                                            <Text style={styles.matchLabel}>{p.matchLabel}</Text>
+                                        </View>
+                                    ) : null}
+
+                                    {p.condition ? (
+                                        <View style={styles.conditionBlock}>
+                                            <Text style={styles.conditionText}>{p.condition}</Text>
+                                            <View style={styles.metricRow}>
+                                                <View style={styles.metricBadge}>
+                                                    <Text style={styles.metricText}>{p.metric}</Text>
+                                                </View>
+                                                <Text style={styles.actionText}>{p.action}</Text>
+                                            </View>
+                                        </View>
+                                    ) : (
+                                        <View style={styles.indicatorRow}>
+                                            {p.indicators.map((ind: string, i: number) => ind !== '' && (
+                                                <Text key={i} style={[styles.indicatorText, ind.includes('warning') && styles.indicatorWarning]}>
+                                                    {ind.replace(' (warning)', '')}
+                                                </Text>
+                                            ))}
+                                        </View>
+                                    )}
+                                </View>
+
+                                <Text style={styles.chevron}>›</Text>
+                            </TouchableOpacity>
+                        ))
+                    )}
                     <View style={{ height: 100 }} />
                 </ScrollView>
 
@@ -209,7 +333,29 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: '700',
         color: '#0f172a',
-        marginLeft: 8,
+    },
+    workerSub: {
+        fontSize: 12,
+        color: '#64748b',
+        fontWeight: '500',
+        marginTop: 2,
+    },
+    detectBtn: {
+        flexDirection: 'row',
+        backgroundColor: '#0d9488',
+        borderRadius: 12,
+        paddingVertical: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    detectIcon: {
+        fontSize: 18,
+        marginRight: 8,
+    },
+    detectText: {
+        color: '#ffffff',
+        fontSize: 15,
+        fontWeight: '700',
     },
     avatar: {
         width: 36,
@@ -448,5 +594,16 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         textTransform: 'uppercase',
         color: '#0d9488',
+    },
+    matchRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+        marginBottom: 2,
+    },
+    matchLabel: {
+        fontSize: 11,
+        color: '#0d9488',
+        fontWeight: '600',
     },
 });

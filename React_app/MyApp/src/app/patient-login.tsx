@@ -5,6 +5,7 @@ import { View, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Sta
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
+import * as Location from 'expo-location';
 import db from '../database/db';
 
 type Step = 'phone' | 'otp';
@@ -89,6 +90,23 @@ export default function PatientLoginScreen() {
                         returningUser.profile_complete === '1' ||
                         returningUser.profile_complete === true ||
                         returningUser.care_mode != null);
+
+                // Silently update location if they granted permission, otherwise just proceed
+                try {
+                    const { status } = await Location.requestForegroundPermissionsAsync();
+                    if (status === 'granted') {
+                        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                        const lat = loc.coords.latitude;
+                        const lon = loc.coords.longitude;
+                        await db.runAsync(
+                            'UPDATE patient_profiles SET latitude = ?, longitude = ? WHERE phone = ?',
+                            [lat, lon, cleanPhone]
+                        );
+                        console.log('Updated returning patient location:', lat, lon);
+                    }
+                } catch (e) {
+                    console.error('Failed to update patient location on login:', e);
+                }
 
                 if (isProfileComplete) {
                     // Navigate to respective dashboard directly

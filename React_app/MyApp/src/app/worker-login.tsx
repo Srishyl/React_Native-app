@@ -5,6 +5,7 @@ import { View, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Sta
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
+import * as Location from 'expo-location';
 
 const VALID_WORKERS = [
     { id: 'WORKER01', pass: 'pass123' },
@@ -29,7 +30,7 @@ export default function WorkerLoginScreen() {
     const [showPass, setShowPass] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
 
-    const handleLogin = () => {
+    const handleLogin = async () => {
         setErrorMsg('');
         if (!name.trim()) {
             setErrorMsg('Please enter your name.');
@@ -54,12 +55,48 @@ export default function WorkerLoginScreen() {
         }
 
         setLoading(true);
-        // Simulate auth
-        setTimeout(() => {
-            setLoading(false);
-            // Navigate to health worker dashboard
-            router.replace('/patient-list' as any);
-        }, 1200);
+
+        // Detect worker's location and get their pincode via reverse geocoding
+        let workerPincode = '';
+        let workerLat = '';
+        let workerLon = '';
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status === 'granted') {
+                const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                workerLat = String(loc.coords.latitude);
+                workerLon = String(loc.coords.longitude);
+
+                const MAPBOX_API_KEY = process.env.EXPO_PUBLIC_MAPBOX_API_KEY;
+                if (MAPBOX_API_KEY) {
+                    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${loc.coords.longitude},${loc.coords.latitude}.json?access_token=${MAPBOX_API_KEY}`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    if (data?.features) {
+                        const postcodeFeature = data.features.find((f: any) => f.place_type.includes('postcode'));
+                        if (postcodeFeature) {
+                            workerPincode = postcodeFeature.text;
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Worker location detection failed:', e);
+        }
+
+        setLoading(false);
+        // Navigate to health worker dashboard with location params
+        router.replace({
+            pathname: '/patient-list' as any,
+            params: {
+                workerName: name.trim(),
+                workerRole: role,
+                workerId: workerId.trim().toUpperCase(),
+                workerPincode,
+                workerLat,
+                workerLon,
+            }
+        });
     };
 
     return (

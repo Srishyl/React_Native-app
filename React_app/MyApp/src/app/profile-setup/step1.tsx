@@ -72,6 +72,23 @@ export default function Step1Screen() {
 
     const MAPBOX_API_KEY = process.env.EXPO_PUBLIC_MAPBOX_API_KEY; // Added Mapbox API key
 
+    // Silently grab location coordinates in the background when the user opens Step 1
+    // to guarantee that lat/lon are not null in the database.
+    React.useEffect(() => {
+        (async () => {
+            try {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status === 'granted') {
+                    const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                    setLatitude(location.coords.latitude);
+                    setLongitude(location.coords.longitude);
+                }
+            } catch (err) {
+                console.log('Background location fetch failed', err);
+            }
+        })();
+    }, []);
+
     const handleDetectLocation = async () => {
         setDetectingLoc(true);
         try {
@@ -131,6 +148,15 @@ export default function Step1Screen() {
         }
         if (!age.trim() || isNaN(Number(age))) {
             Alert.alert('Required', 'Please enter a valid age.');
+            return;
+        }
+
+        // If coordinates are still missing somehow, prompt the user.
+        if (latitude === null || longitude === null) {
+            Alert.alert(
+                'Location Required',
+                'Your location is needed for Asha Workers to find you. Please wait a moment while we get your location or tap "Detect".'
+            );
             return;
         }
 

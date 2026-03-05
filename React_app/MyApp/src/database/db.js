@@ -54,9 +54,33 @@ export const initializeDatabase = async () => {
         synced INTEGER DEFAULT 0
       );
 
+      CREATE TABLE IF NOT EXISTS patient_sessions (
+        phone TEXT PRIMARY KEY NOT NULL,
+        otp TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS patient_profiles (
+        phone TEXT PRIMARY KEY NOT NULL,
+        full_name TEXT,
+        age TEXT,
+        gender TEXT,
+        village TEXT,
+        pincode TEXT,
+        language_preference TEXT,
+        emergency_contact TEXT,
+        known_allergies TEXT,
+        chronic_conditions TEXT,
+        care_mode TEXT,
+        profile_complete INTEGER DEFAULT 0,
+        created_at TEXT,
+        updated_at TEXT
+      );
+
       CREATE INDEX IF NOT EXISTS idx_drug_synced ON drug_usage(synced);
       CREATE INDEX IF NOT EXISTS idx_synced ON patients(synced);
       CREATE INDEX IF NOT EXISTS idx_disease ON patients(predicted_disease);
+      CREATE INDEX IF NOT EXISTS idx_profile_phone ON patient_profiles(phone);
     `);
 
     console.log("Database initialized successfully");

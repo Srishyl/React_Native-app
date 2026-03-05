@@ -1,11 +1,18 @@
-import React from 'react';
 import { Text } from '@/components/AppText';
 
-import { View, TouchableOpacity, StyleSheet, ScrollView, StatusBar, Platform } from 'react-native';
+import {
+    View,
+    TouchableOpacity,
+    StyleSheet,
+    ScrollView,
+    StatusBar,
+    Platform,
+    Alert,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Image } from 'expo-image';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import db from '../../database/db';
 
 // ─── SVG Rings (Simulated with absolute views) ─────────────────────────────────
@@ -63,23 +70,25 @@ export default function PregnancyDashboard() {
     const { phone } = useLocalSearchParams<{ phone: string }>();
     const [patientName, setPatientName] = React.useState('Mama');
 
-    React.useEffect(() => {
-        async function loadUser() {
-            if (!phone) return;
-            try {
-                const row: any = await db.getFirstAsync(
-                    'SELECT full_name FROM patient_profiles WHERE phone = ?',
-                    [phone]
-                );
-                if (row && row.full_name) {
-                    setPatientName(row.full_name.split(' ')[0]);
+    useFocusEffect(
+        React.useCallback(() => {
+            async function loadUser() {
+                if (!phone) return;
+                try {
+                    const row: any = await db.getFirstAsync(
+                        'SELECT full_name FROM patient_profiles WHERE phone = ?',
+                        [phone]
+                    );
+                    if (row && row.full_name) {
+                        setPatientName(row.full_name.split(' ')[0]);
+                    }
+                } catch (err) {
+                    console.error('Failed to load user info:', err);
                 }
-            } catch (err) {
-                console.error('Failed to load user info:', err);
             }
-        }
-        loadUser();
-    }, [phone]);
+            loadUser();
+        }, [phone])
+    );
 
     return (
         <View style={styles.container}>
@@ -96,10 +105,30 @@ export default function PregnancyDashboard() {
                             <Text style={styles.greetingText}>Hi {patientName},</Text>
                             <Text style={styles.headerTitle}>Week 24 of Pregnancy 🌸</Text>
                             <Text style={styles.headerSub}>Your baby is the size of a corn 🌽</Text>
+                            <TouchableOpacity
+                                style={{ backgroundColor: '#2D1F2D', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, marginTop: 8 }}
+                                onPress={async () => {
+                                    if (phone) {
+                                        await db.runAsync("UPDATE patient_profiles SET care_mode = 'normal' WHERE phone = ?", [phone]);
+                                        router.replace({ pathname: '/dashboards/normal' as any, params: { phone } });
+                                    }
+                                }}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={{ color: '#3D8EFF', fontSize: 11, fontWeight: '700' }}>💼 Switch Home</Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
-                    <TouchableOpacity style={styles.profileBtn}>
-                        <Text style={styles.profileIcon}>👤</Text>
+                    <TouchableOpacity
+                        style={styles.profileBtn}
+                        onPress={() => {
+                            Alert.alert('Logout', 'Are you sure you want to logout?', [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Logout', style: 'destructive', onPress: () => router.replace('/' as any) }
+                            ]);
+                        }}
+                    >
+                        <Text style={styles.profileIcon}>🚪</Text>
                     </TouchableOpacity>
                 </Animated.View>
 

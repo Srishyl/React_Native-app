@@ -3,6 +3,11 @@
 # dependencies
 node_modules/
 
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+
 # Expo
 .expo/
 dist/
@@ -43,4 +48,6 @@ app-example
 /ios
 /android
 
+# database
 *.db
+

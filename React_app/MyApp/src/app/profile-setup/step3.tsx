@@ -69,6 +69,7 @@ export default function Step3Screen() {
             return;
         }
         setSaving(true);
+        console.log('DEBUG: Step 3 handleContinue - setting care mode:', selected, 'for phone:', phone);
         try {
             await db.runAsync(
                 `UPDATE patient_profiles
@@ -79,10 +80,11 @@ export default function Step3Screen() {
                 [selected, new Date().toISOString(), phone ?? '']
             );
 
+            console.log('DEBUG: Step 3 success. Navigating to final destination.');
             // Navigate to respective dashboard
             if (selected === 'pregnancy') {
                 router.replace({
-                    pathname: '/dashboards/pregnancy' as any,
+                    pathname: '/pregnancy-activation/step1' as any,
                     params: { phone: phone ?? '' }
                 });
             } else {

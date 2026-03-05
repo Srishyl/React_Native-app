@@ -112,6 +112,7 @@ export default function Step2Screen() {
             return;
         }
         setSaving(true);
+        console.log('DEBUG: Step 2 handleNext - saving health info for phone:', phone);
         try {
             await db.runAsync(
                 `UPDATE patient_profiles
@@ -128,6 +129,7 @@ export default function Step2Screen() {
                     phone ?? '',
                 ]
             );
+            console.log('DEBUG: Step 2 success. Navigating to Step 3.');
             router.push({
                 pathname: '/profile-setup/step3' as any,
                 params: { phone: phone ?? '' },

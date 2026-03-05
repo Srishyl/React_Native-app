@@ -22,7 +22,7 @@ export default function Nutrition() {
                         <Text style={styles.backArrow}>←</Text>
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Nutrition 🍏</Text>
-                    <div style={{ width: 40 }} />
+                    <View style={{ width: 40 }} />
                 </View>
 
                 <ScrollView contentContainerStyle={styles.content}>

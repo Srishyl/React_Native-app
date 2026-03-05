@@ -8,10 +8,12 @@ import {
     StatusBar,
     Platform,
     Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp, SlideInLeft, SlideOutLeft, FadeIn, FadeOut } from 'react-native-reanimated';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import db from '../../database/db';
 
@@ -22,36 +24,64 @@ export default function NormalDashboard() {
     const [patientName, setPatientName] = React.useState('Patient');
     const [appointments, setAppointments] = React.useState<any[]>([]);
     const [completedAppointments, setCompletedAppointments] = React.useState<any[]>([]);
+    const [familyMembers, setFamilyMembers] = React.useState<any[]>([]);
+    const [isSidebarOpen, setSidebarOpen] = React.useState(false);
+    const [scanModalVisible, setScanModalVisible] = React.useState(false);
+    const [isScanning, setIsScanning] = React.useState(false);
+    const [scanSummary, setScanSummary] = React.useState<string | null>(null);
 
     useFocusEffect(
         React.useCallback(() => {
             async function loadUser() {
-                if (!phone) return;
+                let activePhone = phone;
+
+                // Fallback: If phone param is lost (e.g. app reload), get the first profile we have
+                if (!activePhone) {
+                    try {
+                        const fallbackUser: any = await db.getFirstAsync('SELECT phone FROM patient_profiles ORDER BY id DESC LIMIT 1');
+                        if (fallbackUser && fallbackUser.phone) {
+                            activePhone = fallbackUser.phone;
+                        } else {
+                            return; // No user logged in
+                        }
+                    } catch (e) {
+                        return;
+                    }
+                }
+
                 try {
                     const row: any = await db.getFirstAsync(
                         'SELECT full_name FROM patient_profiles WHERE phone = ?',
-                        [phone]
+                        [activePhone]
                     );
                     if (row && row.full_name) {
                         setPatientName(row.full_name.split(' ')[0]);
                     }
 
-                    // Also fetch any pending AND completed appointments
+                    // Fetch pending AND completed appointments
                     try {
                         const apps: any = await db.getAllAsync(
                             "SELECT * FROM appointments WHERE patient_phone = ? AND status = 'pending' ORDER BY id DESC",
-                            [phone]
+                            [activePhone]
                         );
                         setAppointments(apps || []);
 
                         const completedApps: any = await db.getAllAsync(
                             "SELECT * FROM appointments WHERE patient_phone = ? AND status = 'done' ORDER BY id DESC LIMIT 5",
-                            [phone]
+                            [activePhone]
                         );
                         setCompletedAppointments(completedApps || []);
+
+                        // Fetch Family Members
+                        const familyData: any = await db.getAllAsync(
+                            "SELECT * FROM family_members WHERE patient_phone = ? ORDER BY id DESC",
+                            [activePhone]
+                        );
+                        setFamilyMembers(familyData || []);
                     } catch (e) {
                         setAppointments([]);
                         setCompletedAppointments([]);
+                        setFamilyMembers([]);
                     }
 
                 } catch (err) {
@@ -76,6 +106,97 @@ export default function NormalDashboard() {
         }
     };
 
+    const summarizeDocument = async (base64Data: string, mimeType: string) => {
+        setIsScanning(true);
+        setScanSummary(null);
+        setScanModalVisible(true);
+
+        try {
+            const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+            if (!apiKey) {
+                console.log("API KEY:", process.env.EXPO_PUBLIC_GEMINI_API_KEY);
+                Alert.alert("API Key Missing", "Please provide your Google Gemini API Key to use this feature.");
+                setIsScanning(false);
+                return;
+            }
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            {
+                                text: 'You are a helpful medical assistant. Summarize this medical document clearly, concisely, and in simple terms for a patient to understand. Point out any key takeaways.'
+                            },
+                            {
+                                inlineData: {
+                                    mimeType: mimeType,
+                                    data: base64Data
+                                }
+                            }
+                        ]
+                    }]
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.text();
+                throw new Error(err);
+            }
+
+            const data = await response.json();
+            const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (textContent) {
+                setScanSummary(textContent);
+            } else {
+                setScanSummary("Could not generate a summary.");
+            }
+        } catch (error: any) {
+            console.error(error);
+            Alert.alert("Scanning Failed", error.message || "An error occurred while summarizing the document.");
+            setScanModalVisible(false);
+        } finally {
+            setIsScanning(false);
+        }
+    };
+
+    const handleTakePhoto = async () => {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission needed', 'Camera permission is required to scan.');
+            return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.8,
+            base64: true,
+        });
+        if (!result.canceled && result.assets?.[0]?.base64) {
+            summarizeDocument(result.assets[0].base64, result.assets[0].mimeType || 'image/jpeg');
+        }
+    };
+
+    const handleUploadBox = async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission needed', 'Gallery permission is required to upload.');
+            return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.8,
+            base64: true,
+        });
+        if (!result.canceled && result.assets?.[0]?.base64) {
+            summarizeDocument(result.assets[0].base64, result.assets[0].mimeType || 'image/jpeg');
+        }
+    };
+
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="#0D1B2E" />
@@ -86,22 +207,12 @@ export default function NormalDashboard() {
                     showsVerticalScrollIndicator={false}
                 >
                     {/* ── Top Header Bar ── */}
-                    <Animated.View entering={FadeInDown.duration(400)} style={styles.topBar}>
-                        <TouchableOpacity style={styles.menuBtn}>
-                            <Text style={styles.menuIcon}>≡</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.phcId}>PHC-KA-2024-483921</Text>
-                        <TouchableOpacity
-                            style={styles.qrBtn}
-                            onPress={() => {
-                                Alert.alert('Logout', 'Are you sure you want to logout?', [
-                                    { text: 'Cancel', style: 'cancel' },
-                                    { text: 'Logout', style: 'destructive', onPress: () => router.replace('/' as any) }
-                                ]);
-                            }}
-                        >
-                            <Text style={styles.qrIcon}>🚪</Text>
-                        </TouchableOpacity>
+                    <Animated.View entering={FadeInDown.duration(400)} style={[styles.topBar, { justifyContent: 'flex-start' }]}>
+                        <Image
+                            source={require('../../../assets/logo.png')}
+                            style={styles.headerLogo}
+                            contentFit="contain"
+                        />
                     </Animated.View>
 
                     {/* ── Greeting ── */}
@@ -187,6 +298,7 @@ export default function NormalDashboard() {
                         </TouchableOpacity>
                     </Animated.View>
 
+
                     {/* ── Nearest PHC ── */}
                     <Animated.View entering={FadeInUp.duration(500).delay(300)} style={styles.section}>
                         <Text style={styles.sectionTitle}>Nearest PHC</Text>
@@ -211,6 +323,33 @@ export default function NormalDashboard() {
                             </TouchableOpacity>
                         </View>
                     </Animated.View>
+
+                    {/* ── Family Details ── */}
+                    {familyMembers.length > 0 && (
+                        <Animated.View entering={FadeInUp.duration(500).delay(350)} style={styles.section}>
+                            <Text style={styles.sectionTitle}>Family Details</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16 }}>
+                                {familyMembers.map((member) => (
+                                    <View key={member.id} style={styles.familyCard}>
+                                        <Text style={styles.familyRole}>{member.relation}</Text>
+                                        <Text style={styles.familyName}>{member.name}</Text>
+                                        <Text style={styles.familySub}>{member.age} yrs</Text>
+
+                                        {(member.has_bp_sugar && member.has_bp_sugar !== 'None') && (
+                                            <View style={styles.familyTag}>
+                                                <Text style={styles.familyTagText}>🩸 {member.has_bp_sugar}</Text>
+                                            </View>
+                                        )}
+                                        {member.disease ? (
+                                            <View style={[styles.familyTag, { backgroundColor: '#FEF08A', marginTop: 6 }]}>
+                                                <Text style={[styles.familyTagText, { color: '#854D0E', fontSize: 10 }]}>⚠️ Chronic Cond.</Text>
+                                            </View>
+                                        ) : null}
+                                    </View>
+                                ))}
+                            </ScrollView>
+                        </Animated.View>
+                    )}
 
                     {/* ── Your Tokens ── */}
                     <Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.section}>
@@ -281,24 +420,162 @@ export default function NormalDashboard() {
 
                 {/* ── Bottom Navigation Bar ── */}
                 <View style={styles.bottomNav}>
-                    <TouchableOpacity style={styles.navItem} activeOpacity={1}>
+                    <TouchableOpacity style={styles.navItem}>
                         <Text style={styles.navIconActive}>⌂</Text>
                         <Text style={styles.navTextActive}>Home</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={() => router.push('/drug-recommendation' as any)}>
-                        <Text style={styles.navIcon}>📄</Text>
-                        <Text style={styles.navText}>Records</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
-                        <Text style={styles.navIcon}>🔔</Text>
-                        <Text style={styles.navText}>Alerts</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
-                        <Text style={styles.navIcon}>👤</Text>
+
+                    {/* Central FAB */}
+                    <View style={styles.fabContainer}>
+                        <TouchableOpacity
+                            style={styles.fabButton}
+                            activeOpacity={0.8}
+                            onPress={() => setScanModalVisible(true)}
+                        >
+                            <Text style={styles.fabIcon}>📸</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.fabLabel}>Scan</Text>
+                    </View>
+
+                    <TouchableOpacity
+                        style={styles.navItem}
+                        onPress={() => setSidebarOpen(true)}
+                    >
+                        <Text style={styles.navIcon}>�</Text>
                         <Text style={styles.navText}>Profile</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
+
+            {/* ── Scan Document Modal ── */}
+            {scanModalVisible && (
+                <View style={[StyleSheet.absoluteFill, { zIndex: 999, justifyContent: 'flex-end' }]}>
+                    <Animated.View
+                        entering={FadeIn.duration(200)}
+                        exiting={FadeOut.duration(200)}
+                        style={styles.sidebarBackdrop}
+                    >
+                        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setScanModalVisible(false)} />
+                    </Animated.View>
+                    <Animated.View
+                        entering={FadeInDown.duration(300).springify()}
+                        exiting={FadeOut.duration(200)}
+                        style={styles.scanModalContent}
+                    >
+                        <View style={styles.scanModalHeader}>
+                            <Text style={styles.scanModalTitle}>Add Document</Text>
+                            <TouchableOpacity onPress={() => setScanModalVisible(false)}>
+                                <Text style={styles.scanModalClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={styles.scanModalSub}>Choose a method to scan or upload your medical records.</Text>
+
+                        {isScanning ? (
+                            <View style={{ alignItems: 'center', marginTop: 40, marginBottom: 20 }}>
+                                <ActivityIndicator size="large" color="#38BDF8" />
+                                <Text style={{ color: '#94A3B8', marginTop: 16 }}>Analyzing document with AI...</Text>
+                            </View>
+                        ) : scanSummary ? (
+                            <Animated.View entering={FadeInDown.duration(400)} style={{ marginTop: 24 }}>
+                                <Text style={{ color: '#38BDF8', fontSize: 16, fontWeight: '700', marginBottom: 8 }}>📝 Summary</Text>
+                                <ScrollView style={{ maxHeight: 250, backgroundColor: '#111A2C', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#334155' }}>
+                                    <Text style={{ color: '#E2E8F0', fontSize: 14, lineHeight: 22 }}>{scanSummary}</Text>
+                                </ScrollView>
+                                <TouchableOpacity
+                                    style={{ backgroundColor: '#3D8EFF', padding: 16, borderRadius: 16, marginTop: 16, alignItems: 'center' }}
+                                    onPress={() => { setScanModalVisible(false); setScanSummary(null); }}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 16 }}>Done</Text>
+                                </TouchableOpacity>
+                            </Animated.View>
+                        ) : (
+                            <View style={{ gap: 16, marginTop: 24 }}>
+                                <TouchableOpacity style={styles.scanOptionBtn} onPress={handleTakePhoto} activeOpacity={0.8}>
+                                    <View style={[styles.scanIconBox, { backgroundColor: '#3D8EFF' }]}>
+                                        <Text style={{ fontSize: 24 }}>📷</Text>
+                                    </View>
+                                    <View style={{ flex: 1, marginLeft: 16 }}>
+                                        <Text style={styles.scanOptionTitle}>Take Photo</Text>
+                                        <Text style={styles.scanOptionDesc}>Use camera to scan physical documents</Text>
+                                    </View>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity style={styles.scanOptionBtn} onPress={handleUploadBox} activeOpacity={0.8}>
+                                    <View style={[styles.scanIconBox, { backgroundColor: '#10B981' }]}>
+                                        <Text style={{ fontSize: 24 }}>📁</Text>
+                                    </View>
+                                    <View style={{ flex: 1, marginLeft: 16 }}>
+                                        <Text style={styles.scanOptionTitle}>Upload from Gallery</Text>
+                                        <Text style={styles.scanOptionDesc}>Select existing images from your phone</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </Animated.View>
+                </View>
+            )}
+
+            {/* ── Sidebar Overlay ── */}
+            {isSidebarOpen && (
+                <View style={[StyleSheet.absoluteFill, { zIndex: 999 }]}>
+                    <Animated.View
+                        entering={FadeIn.duration(200)}
+                        exiting={FadeOut.duration(200)}
+                        style={styles.sidebarBackdrop}
+                    >
+                        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setSidebarOpen(false)} />
+                    </Animated.View>
+                    <Animated.View
+                        entering={SlideInLeft.duration(300).springify()}
+                        exiting={SlideOutLeft.duration(300)}
+                        style={styles.sidebarContent}
+                    >
+                        <View style={styles.sidebarInner}>
+                            {/* Profile Header */}
+                            <View style={styles.sidebarProfileSec}>
+                                <View style={[styles.profileBtn, { width: 70, height: 70, borderRadius: 35, marginBottom: 16 }]}>
+                                    <Text style={{ fontSize: 32 }}>👤</Text>
+                                </View>
+                                <Text style={styles.sidebarName}>{patientName}</Text>
+                            </View>
+
+                            {/* Family Button */}
+                            <TouchableOpacity
+                                style={styles.sidebarActionBtn}
+                                activeOpacity={0.8}
+                                onPress={async () => {
+                                    setSidebarOpen(false);
+                                    let activePhone = phone;
+                                    if (!activePhone) {
+                                        const fallbackUser: any = await db.getFirstAsync('SELECT phone FROM patient_profiles ORDER BY id DESC LIMIT 1');
+                                        if (fallbackUser) activePhone = fallbackUser.phone;
+                                    }
+                                    router.push({ pathname: '/add-family' as any, params: { phone: activePhone } })
+                                }}
+                            >
+                                <Text style={styles.sidebarActionText}>Family Members ▾</Text>
+                            </TouchableOpacity>
+
+                            <View style={{ flex: 1 }} />
+
+                            {/* Logout Button */}
+                            <TouchableOpacity
+                                style={styles.sidebarLogoutBtn}
+                                activeOpacity={0.8}
+                                onPress={() => {
+                                    Alert.alert('Logout', 'Are you sure you want to logout?', [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        { text: 'Logout', style: 'destructive', onPress: () => router.replace('/' as any) }
+                                    ]);
+                                }}
+                            >
+                                <Text style={styles.sidebarLogoutText}>⎋ Logout</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </Animated.View>
+                </View>
+            )}
         </View>
     );
 }
@@ -313,19 +590,47 @@ const styles = StyleSheet.create({
     // Header
     topBar: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 28,
+        paddingHorizontal: 24,
+        paddingTop: 16,
+        paddingBottom: 24,
+    },
+    headerLogo: {
+        width: 140,
+        height: 48,
+        marginLeft: -10,
+    },
+    profileBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#1E293B',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: '#3D8EFF',
+    },
+    profileIcon: { fontSize: 20 },
+    familyBtn: {
+        backgroundColor: '#1E293B',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+    },
+    familyBtnText: {
+        color: '#F8FAFC',
+        fontSize: 13,
+        fontWeight: '600',
     },
     menuBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         backgroundColor: '#1E293B',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    menuIcon: { color: '#3D8EFF', fontSize: 24, fontWeight: '700', marginTop: -4 },
+    menuIcon: { color: '#F8FAFC', fontSize: 24, fontWeight: '700' },
     phcId: { color: '#F8FAFC', fontSize: 16, fontWeight: '700' },
     qrBtn: {
         width: 40,
@@ -378,6 +683,49 @@ const styles = StyleSheet.create({
     section: { marginBottom: 36 },
     sectionTitle: { color: '#F8FAFC', fontSize: 18, fontWeight: '700', marginBottom: 16 },
 
+    // Scanner
+    scannerCard: {
+        backgroundColor: '#1E293B',
+        borderRadius: 20,
+        padding: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#334155',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 5,
+    },
+    scannerIconBox: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#38BDF8',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    scannerTitle: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '800',
+    },
+    scannerDesc: {
+        color: '#94A3B8',
+        fontSize: 13,
+        marginTop: 4,
+        lineHeight: 18,
+    },
+    scannerArrowBg: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#334155',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+
     // PHC Card
     phcCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24 },
     phcHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
@@ -429,6 +777,55 @@ const styles = StyleSheet.create({
     startBtn: { backgroundColor: '#E0F2FE', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
     startBtnText: { color: '#0284C7', fontSize: 14, fontWeight: '700' },
 
+    // Family Card
+    familyCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        padding: 16,
+        width: 140,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 2,
+    },
+    familyRole: { color: '#3D8EFF', fontSize: 11, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
+    familyName: { color: '#0F172A', fontSize: 16, fontWeight: '800', marginBottom: 2 },
+    familySub: { color: '#64748B', fontSize: 12, fontWeight: '600', marginBottom: 12 },
+    familyTag: { backgroundColor: '#FEE2E2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start' },
+    familyTagText: { color: '#DC2626', fontSize: 11, fontWeight: '800' },
+
+    // FAB (Scanner)
+    fabContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        top: -20,
+    },
+    fabButton: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#38BDF8',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#38BDF8',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 10,
+        elevation: 8,
+        borderWidth: 4,
+        borderColor: '#0D1B2E',
+    },
+    fabIcon: {
+        fontSize: 26,
+    },
+    fabLabel: {
+        color: '#64748B',
+        fontSize: 10,
+        fontWeight: '700',
+        marginTop: 6,
+    },
+
     // Bottom Nav
     bottomNav: {
         flexDirection: 'row',
@@ -445,4 +842,88 @@ const styles = StyleSheet.create({
     navTextActive: { color: '#3D8EFF', fontSize: 11, fontWeight: '700' },
     navIcon: { color: '#64748B', fontSize: 22 },
     navText: { color: '#64748B', fontSize: 11, fontWeight: '600' },
+
+    // Sidebar
+    sidebarBackdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+    },
+    sidebarContent: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        left: 0,
+        width: 280,
+        backgroundColor: '#111A2C',
+        borderRightWidth: 1,
+        borderColor: '#1E293B',
+        shadowColor: '#000',
+        shadowOffset: { width: 4, height: 0 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 10,
+    },
+    sidebarInner: {
+        flex: 1,
+        paddingTop: Platform.OS === 'ios' ? 60 : 40,
+        paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+        paddingHorizontal: 24,
+    },
+    sidebarProfileSec: { marginBottom: 40 },
+    sidebarName: { color: '#FFFFFF', fontSize: 22, fontWeight: '800' },
+    sidebarActionBtn: {
+        backgroundColor: '#1E293B',
+        paddingVertical: 14,
+        paddingHorizontal: 20,
+        borderRadius: 16,
+        alignItems: 'center',
+    },
+    sidebarActionText: { color: '#F8FAFC', fontSize: 15, fontWeight: '700' },
+    sidebarLogoutBtn: {
+        backgroundColor: '#FEE2E2',
+        paddingVertical: 14,
+        borderRadius: 16,
+        alignItems: 'center',
+    },
+    sidebarLogoutText: { color: '#DC2626', fontSize: 16, fontWeight: '800' },
+
+    // Scan Modal
+    scanModalContent: {
+        backgroundColor: '#1E293B',
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        padding: 24,
+        paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 10,
+    },
+    scanModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    scanModalTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800' },
+    scanModalClose: { color: '#64748B', fontSize: 24, fontWeight: '600' },
+    scanModalSub: { color: '#94A3B8', fontSize: 15, marginTop: 8 },
+    scanOptionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#111A2C',
+        padding: 16,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#334155',
+    },
+    scanIconBox: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    scanOptionTitle: { color: '#F8FAFC', fontSize: 17, fontWeight: '700' },
+    scanOptionDesc: { color: '#64748B', fontSize: 13, marginTop: 4 },
 });

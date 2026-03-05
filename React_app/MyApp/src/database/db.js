@@ -92,10 +92,21 @@ export const initializeDatabase = async () => {
         updated_at TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS family_members (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        patient_phone TEXT NOT NULL,
+        name TEXT NOT NULL,
+        age INTEGER NOT NULL,
+        relation TEXT NOT NULL,
+        has_bp_sugar TEXT,
+        disease TEXT
+      );
+
       CREATE INDEX IF NOT EXISTS idx_drug_synced ON drug_usage(synced);
       CREATE INDEX IF NOT EXISTS idx_synced ON patients(synced);
       CREATE INDEX IF NOT EXISTS idx_disease ON patients(predicted_disease);
       CREATE INDEX IF NOT EXISTS idx_profile_phone ON patient_profiles(phone);
+      CREATE INDEX IF NOT EXISTS idx_family_patient ON family_members(patient_phone);
     `);
 
     console.log("Database initialized successfully");

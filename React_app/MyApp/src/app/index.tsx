@@ -168,7 +168,7 @@ export default function LandingScreen() {
           <View style={styles.logoIconWrapper}>
             <Text style={styles.logoIconEmoji}>🩺</Text>
           </View>
-          <Text style={styles.appName}>HealthBridge</Text>
+          <Text style={styles.appName}>GramSaathi</Text>
           <Text style={styles.tagline}>Your health, in your hands.</Text>
         </Animated.View>
 

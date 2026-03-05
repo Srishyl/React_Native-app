@@ -41,6 +41,17 @@ CREATE TABLE IF NOT EXISTS analytics (
   last_updated TEXT
 );
 
+CREATE TABLE IF NOT EXISTS drug_usage (
+  id TEXT PRIMARY KEY,
+  disease TEXT,
+  medicine TEXT,
+  age_group TEXT,
+  allergy_flag INTEGER,
+  timestamp TEXT,
+  synced INTEGER DEFAULT 0
+);
+
 -- Indexes
+CREATE INDEX IF NOT EXISTS idx_drug_synced ON drug_usage(synced);
 CREATE INDEX IF NOT EXISTS idx_synced ON patients(synced);
 CREATE INDEX IF NOT EXISTS idx_disease ON patients(predicted_disease);

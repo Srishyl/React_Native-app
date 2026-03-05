@@ -23,6 +23,7 @@
     "expo-glass-effect": "~55.0.7",
     "expo-image": "~55.0.5",
     "expo-linking": "~55.0.7",
+    "expo-location": "~55.1.2",
     "expo-router": "~55.0.3",
     "expo-splash-screen": "~55.0.10",
     "expo-sqlite": "~55.0.10",

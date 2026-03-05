@@ -7,6 +7,7 @@ import {
     ScrollView,
     StatusBar,
     Platform,
+    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -53,15 +54,37 @@ export default function NormalDashboard() {
                             <Text style={styles.menuIcon}>≡</Text>
                         </TouchableOpacity>
                         <Text style={styles.phcId}>PHC-KA-2024-483921</Text>
-                        <TouchableOpacity style={styles.qrBtn}>
-                            <Text style={styles.qrIcon}>📱</Text>
+                        <TouchableOpacity
+                            style={styles.qrBtn}
+                            onPress={() => {
+                                Alert.alert('Logout', 'Are you sure you want to logout?', [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    { text: 'Logout', style: 'destructive', onPress: () => router.replace('/' as any) }
+                                ]);
+                            }}
+                        >
+                            <Text style={styles.qrIcon}>🚪</Text>
                         </TouchableOpacity>
                     </Animated.View>
 
                     {/* ── Greeting ── */}
                     <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.greetingSection}>
                         <Text style={styles.greetingText}>Good morning,{'\n'}{patientName} 👋</Text>
-                        <Text style={styles.greetingSub}>How are you feeling today?</Text>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                            <Text style={[styles.greetingSub, { marginTop: 0 }]}>How are you feeling today?</Text>
+                            <TouchableOpacity
+                                style={{ backgroundColor: '#1E293B', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }}
+                                onPress={async () => {
+                                    if (phone) {
+                                        await db.runAsync("UPDATE patient_profiles SET care_mode = 'pregnancy' WHERE phone = ?", [phone]);
+                                        router.replace({ pathname: '/dashboards/pregnancy' as any, params: { phone } });
+                                    }
+                                }}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={{ color: '#F06292', fontSize: 12, fontWeight: '700' }}>🤰 Switch Mode</Text>
+                            </TouchableOpacity>
+                        </View>
                     </Animated.View>
 
                     {/* ── Quick Actions Grid ── */}

@@ -73,6 +73,8 @@ export const initializeDatabase = async () => {
         chronic_conditions TEXT,
         care_mode TEXT,
         profile_complete INTEGER DEFAULT 0,
+        latitude REAL,
+        longitude REAL,
         created_at TEXT,
         updated_at TEXT
       );

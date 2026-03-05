@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Image } from 'expo-image';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import db from '../../database/db';
 
 // ─── SVG Rings (Simulated with absolute views) ─────────────────────────────────
@@ -70,23 +70,25 @@ export default function PregnancyDashboard() {
     const { phone } = useLocalSearchParams<{ phone: string }>();
     const [patientName, setPatientName] = React.useState('Mama');
 
-    React.useEffect(() => {
-        async function loadUser() {
-            if (!phone) return;
-            try {
-                const row: any = await db.getFirstAsync(
-                    'SELECT full_name FROM patient_profiles WHERE phone = ?',
-                    [phone]
-                );
-                if (row && row.full_name) {
-                    setPatientName(row.full_name.split(' ')[0]);
+    useFocusEffect(
+        React.useCallback(() => {
+            async function loadUser() {
+                if (!phone) return;
+                try {
+                    const row: any = await db.getFirstAsync(
+                        'SELECT full_name FROM patient_profiles WHERE phone = ?',
+                        [phone]
+                    );
+                    if (row && row.full_name) {
+                        setPatientName(row.full_name.split(' ')[0]);
+                    }
+                } catch (err) {
+                    console.error('Failed to load user info:', err);
                 }
-            } catch (err) {
-                console.error('Failed to load user info:', err);
             }
-        }
-        loadUser();
-    }, [phone]);
+            loadUser();
+        }, [phone])
+    );
 
     return (
         <View style={styles.container}>

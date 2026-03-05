@@ -85,29 +85,38 @@ export default function PatientLoginScreen() {
         try {
             if (otp.trim() === generatedOtp) {
                 // Check if user is returning
+                const cleanPhone = phone.replace(/\\D/g, '');
                 const returningUser: any = await db.getFirstAsync(
                     'SELECT profile_complete, care_mode FROM patient_profiles WHERE phone = ?',
-                    [phone.trim()]
+                    [cleanPhone]
                 );
 
-                if (returningUser && returningUser.profile_complete === 1) {
+                console.log('DEBUG: returningUser query result for phone', cleanPhone, '->', returningUser);
+
+                const isProfileComplete = returningUser &&
+                    (returningUser.profile_complete === 1 ||
+                        returningUser.profile_complete === '1' ||
+                        returningUser.profile_complete === true ||
+                        returningUser.care_mode != null);
+
+                if (isProfileComplete) {
                     // Navigate to respective dashboard directly
                     if (returningUser.care_mode === 'pregnancy') {
                         router.replace({
                             pathname: '/dashboards/pregnancy' as any,
-                            params: { phone: phone.trim() },
+                            params: { phone: cleanPhone },
                         });
                     } else {
                         router.replace({
                             pathname: '/dashboards/normal' as any,
-                            params: { phone: phone.trim() },
+                            params: { phone: cleanPhone },
                         });
                     }
                 } else {
                     // OTP verified — navigate to 3-step profile setup for new or incomplete user
                     router.replace({
                         pathname: '/profile-setup/step1' as any,
-                        params: { phone: phone.trim() },
+                        params: { phone: cleanPhone },
                     });
                 }
             } else {

@@ -58,10 +58,23 @@ export const initializeDatabase = async () => {
         phone TEXT PRIMARY KEY NOT NULL,
         otp TEXT NOT NULL,
         created_at TEXT NOT NULL
-      );
+      );`);
 
+    // Safe Migration: Drop old table if "id" column is missing
+    try {
+      const tableInfo = await db.getAllAsync("PRAGMA table_info(patient_profiles)");
+      if (tableInfo && tableInfo.length > 0) {
+        const hasId = tableInfo.some((col) => col.name === 'id');
+        if (!hasId) {
+          await db.execAsync("DROP TABLE IF EXISTS patient_profiles");
+        }
+      }
+    } catch (e) { }
+
+    await db.execAsync(`
       CREATE TABLE IF NOT EXISTS patient_profiles (
-        phone TEXT PRIMARY KEY NOT NULL,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        phone TEXT UNIQUE NOT NULL,
         full_name TEXT,
         age TEXT,
         gender TEXT,
@@ -73,6 +86,8 @@ export const initializeDatabase = async () => {
         chronic_conditions TEXT,
         care_mode TEXT,
         profile_complete INTEGER DEFAULT 0,
+        latitude REAL,
+        longitude REAL,
         created_at TEXT,
         updated_at TEXT
       );

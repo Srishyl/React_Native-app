@@ -9,11 +9,13 @@ import {
     StatusBar,
     Alert,
     Platform,
+    ActivityIndicator, // Added ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
+import * as Location from 'expo-location'; // Added Location import
 import db from '../../database/db';
 
 const GENDERS = ['Male', 'Female', 'Other'] as const;
@@ -32,7 +34,7 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
     return (
         <View style={pb.wrapper}>
             <View style={pb.track}>
-                <View style={[pb.fill, { width: `${pct}%` as any }]} />
+                <View style={[pb.fill, { width: `${pct}% ` as any }]} />
             </View>
         </View>
     );
@@ -62,8 +64,65 @@ export default function Step1Screen() {
     const [gender, setGender] = useState<Gender>('Male');
     const [village, setVillage] = useState('');
     const [pincode, setPincode] = useState('');
-    const [language, setLanguage] = useState('en');
+    const [language, setLanguage] = useState<string | null>(null); // Changed type and initial value
     const [saving, setSaving] = useState(false);
+    const [detectingLoc, setDetectingLoc] = useState(false); // Added detectingLoc state
+    const [latitude, setLatitude] = useState<number | null>(null); // Added latitude state
+    const [longitude, setLongitude] = useState<number | null>(null); // Added longitude state
+
+    const MAPBOX_API_KEY = process.env.EXPO_PUBLIC_MAPBOX_API_KEY; // Added Mapbox API key
+
+    const handleDetectLocation = async () => {
+        setDetectingLoc(true);
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permission Denied', 'Location permission is required to detect your city.');
+                setDetectingLoc(false);
+                return;
+            }
+
+            const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const lat = location.coords.latitude;
+            const lon = location.coords.longitude;
+            setLatitude(lat);
+            setLongitude(lon);
+
+            if (!MAPBOX_API_KEY) {
+                Alert.alert('Configuration Error', 'Mapbox API key is missing.');
+                return;
+            }
+
+            // Reverse Geocoding using Mapbox v5
+            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json?access_token=${MAPBOX_API_KEY}`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data && data.features && data.features.length > 0) {
+                // Try to extract a locality or place name
+                const place = data.features.find((f: any) => f.place_type.includes('locality') || f.place_type.includes('place'));
+                const postcode = data.features.find((f: any) => f.place_type.includes('postcode'));
+
+                if (place) {
+                    setVillage(place.text);
+                } else {
+                    // Fallback to the first feature's text
+                    setVillage(data.features[0].text);
+                }
+
+                if (postcode) {
+                    setPincode(postcode.text);
+                }
+            } else {
+                Alert.alert('Location Not Found', 'Could not determine your city from coordinates.');
+            }
+        } catch (error) {
+            console.error('Location detection failed:', error);
+            Alert.alert('Error', 'Failed to detect location. Please try again.');
+        } finally {
+            setDetectingLoc(false);
+        }
+    };
 
     const handleNext = async () => {
         if (!fullName.trim()) {
@@ -79,9 +138,19 @@ export default function Step1Screen() {
         try {
             const now = new Date().toISOString();
             await db.runAsync(
-                `INSERT OR REPLACE INTO patient_profiles
-          (phone, full_name, age, gender, village, pincode, language_preference, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO patient_profiles
+          (phone, full_name, age, gender, village, pincode, language_preference, latitude, longitude, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(phone) DO UPDATE SET
+          full_name = excluded.full_name,
+          age = excluded.age,
+          gender = excluded.gender,
+          village = excluded.village,
+          pincode = excluded.pincode,
+          language_preference = excluded.language_preference,
+          latitude = excluded.latitude,
+          longitude = excluded.longitude,
+          updated_at = excluded.updated_at`,
                 [
                     phone ?? '',
                     fullName.trim(),
@@ -90,6 +159,8 @@ export default function Step1Screen() {
                     village.trim(),
                     pincode.trim(),
                     language,
+                    latitude,
+                    longitude,
                     now,
                     now,
                 ]
@@ -209,7 +280,16 @@ export default function Step1Screen() {
                         style={[styles.fieldBlock, styles.rowFields]}
                     >
                         <View style={styles.halfField}>
-                            <Text style={styles.label}>Village / Area</Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                <Text style={[styles.label, { marginBottom: 0 }]}>Village / Area</Text>
+                                <TouchableOpacity onPress={handleDetectLocation} disabled={detectingLoc}>
+                                    {detectingLoc ? (
+                                        <ActivityIndicator size="small" color="#3D8EFF" />
+                                    ) : (
+                                        <Text style={{ fontSize: 12, color: '#3D8EFF', fontWeight: '700' }}>📍 Detect</Text>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
                             <TextInput
                                 style={styles.input}
                                 placeholder="Location"

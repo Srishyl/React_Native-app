@@ -121,7 +121,7 @@ export default function FindPHCScreen() {
                         <Text style={styles.backText}>← Back</Text>
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Find PHC</Text>
-                    <View style={{ width: 60 }} /> {/* Spacer */}
+                    <View style={{ width: 60 }} />
                 </Animated.View>
 
                 {/* ── Info & Detect Button ── */}

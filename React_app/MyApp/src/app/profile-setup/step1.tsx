@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
+import { Text, TextInput } from '@/components/AppText';
+
 import {
     View,
-    Text,
-    TextInput,
     TouchableOpacity,
     StyleSheet,
     ScrollView,
     StatusBar,
     Alert,
     Platform,
-    ActivityIndicator, // Added ActivityIndicator
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -71,6 +71,23 @@ export default function Step1Screen() {
     const [longitude, setLongitude] = useState<number | null>(null); // Added longitude state
 
     const MAPBOX_API_KEY = process.env.EXPO_PUBLIC_MAPBOX_API_KEY; // Added Mapbox API key
+
+    // Silently grab location coordinates in the background when the user opens Step 1
+    // to guarantee that lat/lon are not null in the database.
+    React.useEffect(() => {
+        (async () => {
+            try {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status === 'granted') {
+                    const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                    setLatitude(location.coords.latitude);
+                    setLongitude(location.coords.longitude);
+                }
+            } catch (err) {
+                console.log('Background location fetch failed', err);
+            }
+        })();
+    }, []);
 
     const handleDetectLocation = async () => {
         setDetectingLoc(true);
@@ -134,7 +151,17 @@ export default function Step1Screen() {
             return;
         }
 
+        // If coordinates are still missing somehow, prompt the user.
+        if (latitude === null || longitude === null) {
+            Alert.alert(
+                'Location Required',
+                'Your location is needed for Asha Workers to find you. Please wait a moment while we get your location or tap "Detect".'
+            );
+            return;
+        }
+
         setSaving(true);
+        console.log('DEBUG: Step 1 handleNext - saving profile for phone:', phone);
         try {
             const now = new Date().toISOString();
             await db.runAsync(
@@ -165,6 +192,7 @@ export default function Step1Screen() {
                     now,
                 ]
             );
+            console.log('DEBUG: Step 1 success. Navigating to Step 2.');
             router.push({
                 pathname: '/profile-setup/step2' as any,
                 params: { phone: phone ?? '' },

@@ -9,6 +9,7 @@ import {
     Platform,
     Alert,
     ActivityIndicator,
+    Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp, SlideInLeft, SlideOutLeft, FadeIn, FadeOut } from 'react-native-reanimated';
@@ -424,27 +425,138 @@ export default function NormalDashboard() {
                         <Text style={styles.navIconActive}>⌂</Text>
                         <Text style={styles.navTextActive}>Home</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7} onPress={() => router.push('/drug-recommendation' as any)}>
-                        <Text style={styles.navIcon}>📄</Text>
-                        <Text style={styles.navText}>Records</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.navItem} activeOpacity={0.7}>
-                        <Text style={styles.navIcon}>🔔</Text>
-                        <Text style={styles.navText}>Alerts</Text>
-                    </TouchableOpacity>
+
+                    <View style={styles.fabContainer}>
+                        <TouchableOpacity
+                            style={styles.fabButton}
+                            activeOpacity={0.9}
+                            onPress={() => setScanModalVisible(true)}
+                        >
+                            <Text style={styles.fabIcon}>📷</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.fabLabel}>SCAN</Text>
+                    </View>
+
                     <TouchableOpacity
                         style={styles.navItem}
                         activeOpacity={0.7}
-                        onPress={() => router.push({
-                            pathname: '/profile-setup/step1' as any,
-                            params: { phone: phone ?? '' }
-                        })}
+                        onPress={() => setSidebarOpen(true)}
                     >
                         <Text style={styles.navIcon}>👤</Text>
-                        <Text style={styles.navText}>Profile</Text>
+                        <Text style={styles.navText}>Menu</Text>
                     </TouchableOpacity>
                 </View >
+
+                {/* ── Scan Modal ── */}
+                <Modal
+                    visible={scanModalVisible}
+                    animationType="slide"
+                    transparent={true}
+                    onRequestClose={() => setScanModalVisible(false)}
+                >
+                    <TouchableOpacity
+                        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}
+                        activeOpacity={1}
+                        onPress={() => setScanModalVisible(false)}
+                    >
+                        <TouchableOpacity activeOpacity={1} style={styles.scanModalContent}>
+                            <View style={styles.scanModalHeader}>
+                                <Text style={styles.scanModalTitle}>Scan Medical Report</Text>
+                                <TouchableOpacity onPress={() => setScanModalVisible(false)}>
+                                    <Text style={styles.scanModalClose}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <Text style={styles.scanModalSub}>Choose how you want to upload the document.</Text>
+
+                            {isScanning ? (
+                                <View style={{ padding: 40, alignItems: 'center' }}>
+                                    <ActivityIndicator size="large" color="#38BDF8" />
+                                    <Text style={{ color: '#94A3B8', marginTop: 16, fontSize: 15 }}>Analyzing document with AI...</Text>
+                                </View>
+                            ) : scanSummary ? (
+                                <ScrollView style={{ marginTop: 24, maxHeight: 300 }}>
+                                    <Text style={{ color: '#FFFFFF', fontSize: 15, lineHeight: 24 }}>{scanSummary}</Text>
+                                </ScrollView>
+                            ) : (
+                                <View style={{ marginTop: 24, gap: 16 }}>
+                                    <TouchableOpacity style={styles.scanOptionBtn} activeOpacity={0.8} onPress={handleTakePhoto}>
+                                        <View style={[styles.scanIconBox, { backgroundColor: '#38BDF8' }]}>
+                                            <Text style={{ fontSize: 24 }}>📷</Text>
+                                        </View>
+                                        <View style={{ marginLeft: 16, flex: 1 }}>
+                                            <Text style={styles.scanOptionTitle}>Take Photo</Text>
+                                            <Text style={styles.scanOptionDesc}>Use camera to scan report</Text>
+                                        </View>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity style={styles.scanOptionBtn} activeOpacity={0.8} onPress={handleUploadBox}>
+                                        <View style={[styles.scanIconBox, { backgroundColor: '#818CF8' }]}>
+                                            <Text style={{ fontSize: 24 }}>📁</Text>
+                                        </View>
+                                        <View style={{ marginLeft: 16, flex: 1 }}>
+                                            <Text style={styles.scanOptionTitle}>Upload File</Text>
+                                            <Text style={styles.scanOptionDesc}>Choose from gallery or files</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                    </TouchableOpacity>
+                </Modal>
             </SafeAreaView >
+
+            {/* ── Sidebar Overlay ── */}
+            {isSidebarOpen && (
+                <View style={StyleSheet.absoluteFill}>
+                    <Animated.View
+                        entering={FadeIn.duration(300)}
+                        exiting={FadeOut.duration(300)}
+                        style={styles.sidebarBackdrop}
+                    >
+                        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setSidebarOpen(false)} />
+                    </Animated.View>
+
+                    <Animated.View
+                        entering={SlideInLeft.duration(300)}
+                        exiting={SlideOutLeft.duration(300)}
+                        style={styles.sidebarContent}
+                    >
+                        <View style={styles.sidebarInner}>
+                            <View style={styles.sidebarProfileSec}>
+                                <Text style={styles.sidebarName}>{patientName}</Text>
+                                <Text style={{ color: '#94A3B8', marginTop: 4 }}>+91 {phone}</Text>
+                            </View>
+
+                            <View style={{ flex: 1, gap: 16 }}>
+                                <TouchableOpacity
+                                    style={styles.sidebarActionBtn}
+                                    activeOpacity={0.8}
+                                    onPress={() => {
+                                        setSidebarOpen(false);
+                                        router.push({ pathname: '/add-family' as any, params: { phone } });
+                                    }}
+                                >
+                                    <Text style={styles.sidebarActionText}>👥 Add Family Member</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <TouchableOpacity
+                                style={styles.sidebarLogoutBtn}
+                                activeOpacity={0.8}
+                                onPress={() => {
+                                    setSidebarOpen(false);
+                                    Alert.alert('Logout', 'Are you sure you want to logout?', [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        { text: 'Logout', style: 'destructive', onPress: () => router.replace('/' as any) }
+                                    ]);
+                                }}
+                            >
+                                <Text style={styles.sidebarLogoutText}>🚪 Logout</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </Animated.View>
+                </View>
+            )}
         </View >
     );
 }

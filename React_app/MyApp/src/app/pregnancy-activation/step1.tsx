@@ -71,23 +71,51 @@ export default function ActivationStep1() {
     const router = useRouter();
     const { phone } = useLocalSearchParams<{ phone: string }>();
     const [isDocsExpanded, setIsDocsExpanded] = React.useState(false);
+    const [isApproved, setIsApproved] = React.useState(false);
 
     const handleAshaOption = async () => {
+        setIsApproved(true);
         try {
+            const now = new Date().toISOString();
+            const todayStr = new Date().toISOString().split('T')[0];
+            const edd = new Date();
+            edd.setDate(edd.getDate() + 280);
+            const eddStr = edd.toISOString().split('T')[0];
+
+            // 1. Update patient profile to approved and set pregnancy mode
             await db.runAsync(
                 `UPDATE patient_profiles 
-                 SET verification_status = 'pending',
+                 SET verification_status = 'approved',
+                     pregnancy_verified = 1,
+                     care_mode = 'pregnancy',
                      verification_method = 'asha',
                      updated_at = ?
                  WHERE phone = ?`,
-                [new Date().toISOString(), phone ?? '']
+                [now, phone ?? '']
             );
-            router.push({
-                pathname: '/pregnancy-activation/step3' as any,
-                params: { phone: phone ?? '' }
-            });
+
+            // 2. Initialize pregnancy record
+            await db.runAsync(
+                `INSERT OR REPLACE INTO pregnancy_records (phone, edd, pregnancy_start_date, created_at)
+                 VALUES (?, ?, ?, ?)`,
+                [phone ?? '', eddStr, todayStr, now]
+            );
+
+            // 3. Generate ANC visits
+            const { generateANCVisits } = require('../../utils/pregnancy');
+            await generateANCVisits(phone ?? '', todayStr);
+
+            // 4. Redirect after a short delay to show "Approved" state
+            setTimeout(() => {
+                router.replace({
+                    pathname: '/dashboards/pregnancy' as any,
+                    params: { phone: phone ?? '' }
+                });
+            }, 1500);
+
         } catch (err) {
             console.error('ASHA option error:', err);
+            setIsApproved(false);
         }
     };
 
@@ -138,11 +166,11 @@ export default function ActivationStep1() {
                         />
 
                         <OptionCard
-                            title="Option B: ASHA Verified"
-                            subtitle="Ask your local ASHA worker to verify your pregnancy in-person"
-                            icon="💼"
-                            iconBg="#1A3A5C"
-                            onPress={handleAshaOption}
+                            title={isApproved ? "Option B: Approved!" : "Option B: ASHA Verified"}
+                            subtitle={isApproved ? "Redirecting to your dashboard..." : "Ask your local ASHA worker to verify your pregnancy in-person"}
+                            icon={isApproved ? "✅" : "💼"}
+                            iconBg={isApproved ? "#0F2D3D" : "#1A3A5C"}
+                            onPress={isApproved ? () => { } : handleAshaOption}
                         />
                     </Animated.View>
 

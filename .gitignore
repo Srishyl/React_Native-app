@@ -40,3 +40,16 @@ Thumbs.db
 React_app/MyApp/web-build/
 React_app/MyApp/android/build/
 React_app/MyApp/ios/build/
+
+# Secret / Environment Files
+**/.env*
+**/.env.local
+**/.env.development
+**/.env.test
+**/.env.production
+
+# Databases
+**/*.db
+**/*.db-journal
+**/*.db-shm
+**/*.db-wal

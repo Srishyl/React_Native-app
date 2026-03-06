@@ -1,0 +1,1036 @@
+import React from 'react';
+import { Text } from '@/components/AppText';
+import {
+    View,
+    TouchableOpacity,
+    StyleSheet,
+    ScrollView,
+    StatusBar,
+    Platform,
+    Alert,
+    ActivityIndicator,
+    Modal,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeInDown, FadeInUp, SlideInLeft, SlideOutLeft, SlideInRight, SlideOutRight, FadeIn, FadeOut } from 'react-native-reanimated';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import db from '../../database/db';
+import { useLanguage } from '../../contexts/LanguageContext';
+
+const LANGUAGES = [
+    { code: 'en', label: 'English' },
+    { code: 'kn', label: 'ಕನ್ನಡ' },
+    { code: 'hi', label: 'हिंदी' },
+    { code: 'ta', label: 'தமிழ்' },
+];
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+export default function NormalDashboard() {
+    const router = useRouter();
+    const { phone } = useLocalSearchParams<{ phone: string }>();
+    const [activeProfilePhone, setActiveProfilePhone] = React.useState<string | null>(null);
+    const [patientName, setPatientName] = React.useState('Patient');
+    const [patientGender, setPatientGender] = React.useState<string | null>(null);
+    const [appointments, setAppointments] = React.useState<any[]>([]);
+    const [completedAppointments, setCompletedAppointments] = React.useState<any[]>([]);
+    const [familyMembers, setFamilyMembers] = React.useState<any[]>([]);
+    const [isSidebarOpen, setSidebarOpen] = React.useState(false);
+    const [scanModalVisible, setScanModalVisible] = React.useState(false);
+    const [isScanning, setIsScanning] = React.useState(false);
+    const [scanSummary, setScanSummary] = React.useState<string | null>(null);
+    const [qrModalVisible, setQrModalVisible] = React.useState(false);
+    const [qrData, setQrData] = React.useState<string>('');
+    const [langModalVisible, setLangModalVisible] = React.useState(false);
+    const { language: selectedLang, setLanguage: setSelectedLang } = useLanguage();
+
+    useFocusEffect(
+        React.useCallback(() => {
+            async function loadUser() {
+                let activePhone = phone;
+
+                // Fallback: If phone param is lost (e.g. app reload), get the first profile we have
+                if (!activePhone) {
+                    try {
+                        const fallbackUser: any = await db.getFirstAsync('SELECT phone FROM patient_profiles ORDER BY id DESC LIMIT 1');
+                        if (fallbackUser && fallbackUser.phone) {
+                            activePhone = fallbackUser.phone;
+                        } else {
+                            return; // No user logged in
+                        }
+                    } catch (e) {
+                        return;
+                    }
+                }
+
+                setActiveProfilePhone(activePhone || null);
+
+                try {
+                    const row: any = await db.getFirstAsync(
+                        'SELECT full_name, gender FROM patient_profiles WHERE phone = ?',
+                        [activePhone]
+                    );
+                    if (row) {
+                        if (row.full_name) {
+                            setPatientName(row.full_name.split(' ')[0]);
+                        }
+                        if (row.gender) {
+                            setPatientGender(row.gender);
+                        }
+                    }
+
+                    // Fetch pending AND completed appointments
+                    let localApps: any = [];
+                    let localCompleted: any = [];
+                    let localFamily: any = [];
+                    try {
+                        localApps = await db.getAllAsync(
+                            "SELECT * FROM appointments WHERE patient_phone = ? AND status IN ('pending', 'accepted') ORDER BY id DESC",
+                            [activePhone]
+                        );
+                        setAppointments(localApps || []);
+
+                        localCompleted = await db.getAllAsync(
+                            "SELECT * FROM appointments WHERE patient_phone = ? AND status = 'done' ORDER BY id DESC LIMIT 5",
+                            [activePhone]
+                        );
+                        setCompletedAppointments(localCompleted || []);
+
+                        // Fetch Family Members
+                        localFamily = await db.getAllAsync(
+                            "SELECT * FROM family_members WHERE patient_phone = ? ORDER BY id DESC",
+                            [activePhone]
+                        );
+                        setFamilyMembers(localFamily || []);
+                    } catch (e) {
+                        setAppointments([]);
+                        setCompletedAppointments([]);
+                        setFamilyMembers([]);
+                    }
+
+                    // Ensure the generated QR data is saved to DB
+                    const currentQrData = JSON.stringify({
+                        profile: { name: row?.full_name?.split(' ')[0] || 'Patient', phone: activePhone },
+                        records: { appointments: (localApps || []).length, completed: (localCompleted || []).length },
+                        familyCount: (localFamily || []).length
+                    });
+                    setQrData(currentQrData);
+
+                    try {
+                        await db.runAsync('UPDATE patient_profiles SET qr_code_data = ? WHERE phone = ?', [currentQrData, activePhone]);
+                    } catch (e) {
+                        console.log('Failed to save QR info to DB', e);
+                    }
+
+                } catch (err) {
+                    console.error('Failed to load user info:', err);
+                }
+            }
+            loadUser();
+        }, [phone])
+    );
+
+    const handleMarkDone = async (appId: number) => {
+        try {
+            await db.runAsync('UPDATE appointments SET status = ? WHERE id = ?', ['done', appId]);
+            // Move item from appointments to completedAppointments
+            const finishedApp = appointments.find(a => a.id === appId);
+            if (finishedApp) {
+                setAppointments(prev => prev.filter(app => app.id !== appId));
+                setCompletedAppointments(prev => [{ ...finishedApp, status: 'done' }, ...prev]);
+            }
+        } catch (error) {
+            console.error('Failed to mark done:', error);
+        }
+    };
+
+    const summarizeDocument = async (base64Data: string, mimeType: string) => {
+        setIsScanning(true);
+        setScanSummary(null);
+        setScanModalVisible(true);
+
+        try {
+            const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+            if (!apiKey) {
+                console.log("API KEY:", process.env.EXPO_PUBLIC_GEMINI_API_KEY);
+                Alert.alert("API Key Missing", "Please provide your Google Gemini API Key to use this feature.");
+                setIsScanning(false);
+                return;
+            }
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            {
+                                text: 'You are a helpful medical assistant. Summarize this medical document clearly, concisely, and in simple terms for a patient to understand. Point out any key takeaways.'
+                            },
+                            {
+                                inlineData: {
+                                    mimeType: mimeType,
+                                    data: base64Data
+                                }
+                            }
+                        ]
+                    }]
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.text();
+                throw new Error(err);
+            }
+
+            const data = await response.json();
+            const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (textContent) {
+                setScanSummary(textContent);
+            } else {
+                setScanSummary("Could not generate a summary.");
+            }
+        } catch (error: any) {
+            console.error(error);
+            Alert.alert("Scanning Failed", error.message || "An error occurred while summarizing the document.");
+            setScanModalVisible(false);
+        } finally {
+            setIsScanning(false);
+        }
+    };
+
+    const handleTakePhoto = async () => {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission needed', 'Camera permission is required to scan.');
+            return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.8,
+            base64: true,
+        });
+        if (!result.canceled && result.assets?.[0]?.base64) {
+            summarizeDocument(result.assets[0].base64, result.assets[0].mimeType || 'image/jpeg');
+        }
+    };
+
+    const handleUploadBox = async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission needed', 'Gallery permission is required to upload.');
+            return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.8,
+            base64: true,
+        });
+        if (!result.canceled && result.assets?.[0]?.base64) {
+            summarizeDocument(result.assets[0].base64, result.assets[0].mimeType || 'image/jpeg');
+        }
+    };
+
+    return (
+        <View style={styles.container}>
+            <StatusBar barStyle="light-content" backgroundColor="#0D1B2E" />
+            <SafeAreaView style={styles.safeArea} edges={['top']}>
+                <ScrollView
+                    style={styles.scroll}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                >
+
+
+                    {/* ── Greeting ── */}
+                    <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.greetingSection}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <Image
+                                source={require('../../../assets/app_logo.jpg')}
+                                style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#FFFFFF' }}
+                                contentFit="contain"
+                            />
+                            <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '900', fontFamily: 'extra-bold' }}>GramSaathi</Text>
+                            <TouchableOpacity
+                                style={{ backgroundColor: '#1E293B', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: '#334155' }}
+                                onPress={() => {
+                                    if (patientGender?.toLowerCase() === 'male') {
+                                        Alert.alert("Restricted Feature", "Pregnancy mode is restricted for male profiles.");
+                                        return;
+                                    }
+                                    router.push({
+                                        pathname: '/pregnancy-activation/step1' as any,
+                                        params: { phone: phone ?? '' }
+                                    });
+                                }}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={{ color: '#F06292', fontSize: 12, fontWeight: '700' }}>🤰 Pregnancy Mode ›</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={styles.greetingText}>Hello, {patientName} </Text>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                            <Text style={[styles.greetingSub, { marginTop: 0 }]}>How are you feeling today?</Text>
+                        </View>
+                    </Animated.View>
+
+                    {/* ── Quick Actions Grid ── */}
+                    <Animated.View entering={FadeInUp.duration(500).delay(200)} style={styles.grid}>
+                        {/* Action Card 1: Check Symptoms */}
+                        <TouchableOpacity
+                            style={styles.actionCard}
+                            activeOpacity={0.8}
+                            onPress={() => router.push('/symptom-triage' as any)}
+                        >
+                            <View style={[styles.iconBox, { backgroundColor: '#0D1522' }]}>
+                                <Image
+                                    source={require('../../../assets/icon_check_symptoms.png')}
+                                    style={styles.actionImg}
+                                    contentFit="contain"
+                                />
+                            </View>
+                            <Text style={styles.actionText}>Check{'\n'}Symptoms</Text>
+                        </TouchableOpacity>
+
+
+                        {/* Action Card 4: Medicines */}
+                        < TouchableOpacity
+                            style={styles.actionCard}
+                            activeOpacity={0.8}
+                            onPress={() => router.push('/drug-recommendation' as any)}
+                        >
+                            <View style={[styles.iconBox, { backgroundColor: '#0D1522' }]}>
+                                <Image
+                                    source={require('../../../assets/icon_medicines.png')}
+                                    style={styles.actionImg}
+                                    contentFit="contain"
+                                />
+                            </View>
+                            <Text style={styles.actionText}>Medicines</Text>
+                        </TouchableOpacity >
+                    </Animated.View >
+
+
+                    {/* ── Nearest PHC ── */}
+                    < Animated.View entering={FadeInUp.duration(500).delay(300)} style={styles.section} >
+                        <Text style={styles.sectionTitle}>Nearest PHC</Text>
+                        <View style={styles.phcCard}>
+                            <View style={styles.phcHeaderRow}>
+                                <Text style={styles.phcName}>Locate Facilities</Text>
+                                <View style={styles.openBadge}>
+                                    <Text style={styles.openText}>LIVE</Text>
+                                </View>
+                            </View>
+
+                            <Text style={[styles.phcDistance, { marginTop: 4, marginBottom: 16 }]}>
+                                Use your GPS to find the nearest primary health centers and clinics.
+                            </Text>
+
+                            <TouchableOpacity
+                                style={styles.bookTokenBtn}
+                                activeOpacity={0.85}
+                                onPress={() => router.push({ pathname: '/find-phc' as any, params: { phone: activeProfilePhone } })}
+                            >
+                                <Text style={styles.bookTokenText}>📍 Start Search</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </Animated.View >
+
+                    {/* ── Family Details ── */}
+                    {familyMembers.length > 0 && (
+                        <Animated.View entering={FadeInUp.duration(500).delay(350)} style={styles.section}>
+                            <Text style={styles.sectionTitle}>Family Details</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16 }}>
+                                {familyMembers.map((member) => (
+                                    <View key={member.id} style={styles.familyCard}>
+                                        <Text style={styles.familyRole}>{member.relation}</Text>
+                                        <Text style={styles.familyName}>{member.name}</Text>
+                                        <Text style={styles.familySub}>{member.age} yrs</Text>
+
+                                        {(member.has_bp_sugar && member.has_bp_sugar !== 'None') && (
+                                            <View style={styles.familyTag}>
+                                                <Text style={styles.familyTagText}>🩸 {member.has_bp_sugar}</Text>
+                                            </View>
+                                        )}
+                                        {member.disease ? (
+                                            <View style={[styles.familyTag, { backgroundColor: '#422006', marginTop: 6 }]}>
+                                                <Text style={[styles.familyTagText, { color: '#FDE047', fontSize: 10 }]}>⚠️ Chronic Cond.</Text>
+                                            </View>
+                                        ) : null}
+                                    </View>
+                                ))}
+                            </ScrollView>
+                        </Animated.View>
+                    )}
+
+                    {/* ── Your Tokens ── */}
+                    < Animated.View entering={FadeInUp.duration(500).delay(400)} style={styles.section} >
+                        <Text style={styles.sectionTitle}>Your Tokens</Text>
+                        <View style={styles.remindersCard}>
+                            {appointments.length === 0 ? (
+                                <View style={{ padding: 10, alignItems: 'center' }}>
+                                    <Text style={{ color: '#9BB4D0', fontSize: 14 }}>No upcoming appointments booked.</Text>
+                                </View>
+                            ) : (
+                                appointments.map((app, index) => (
+                                    <React.Fragment key={app.id}>
+                                        <View style={styles.reminderRow}>
+                                            <View style={app.status === 'accepted' ? styles.reminderIconDone : styles.reminderIconUrgent}>
+                                                <Text style={app.status === 'accepted' ? styles.reminderCheck : styles.reminderAlert}>{app.status === 'accepted' ? '🧑‍⚕️' : '📅'}</Text>
+                                            </View>
+                                            <View style={styles.reminderInfo}>
+                                                <Text style={styles.reminderTitle}>{app.doctor_name} {app.status === 'accepted' && <Text style={{ color: '#34D399', fontSize: 13 }}> (Accepted)</Text>}</Text>
+                                                <Text style={styles.reminderTime}>{app.specialty} at {app.time}</Text>
+                                                <Text style={{ fontSize: 11, color: '#3D8EFF', marginTop: 4, fontWeight: '600' }}>
+                                                    Token: {app.token_id || 'N/A'} • Doc: {app.doctor_id || 'N/A'}
+                                                </Text>
+                                            </View>
+                                            <TouchableOpacity
+                                                style={styles.startBtn}
+                                                activeOpacity={0.8}
+                                                onPress={() => handleMarkDone(app.id)}
+                                            >
+                                                <Text style={styles.startBtnText}>Done</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                        {index < appointments.length - 1 && <View style={styles.divider} />}
+                                    </React.Fragment>
+                                ))
+                            )}
+                        </View>
+                    </Animated.View >
+
+                    {/* ── Completed Tokens ── */}
+                    {
+                        completedAppointments.length > 0 && (
+                            <Animated.View entering={FadeInUp.duration(500).delay(500)} style={styles.section}>
+                                <Text style={styles.sectionTitle}>Completed Tokens</Text>
+                                <View style={styles.remindersCard}>
+                                    {completedAppointments.map((app, index) => (
+                                        <React.Fragment key={app.id}>
+                                            <View style={[styles.reminderRow, { opacity: 0.7 }]}>
+                                                <View style={styles.reminderIconDone}>
+                                                    <Text style={styles.reminderCheck}>✓</Text>
+                                                </View>
+                                                <View style={styles.reminderInfo}>
+                                                    <Text style={[styles.reminderTitle, { textDecorationLine: 'line-through', color: '#6B8BAE' }]}>{app.doctor_name}</Text>
+                                                    <Text style={styles.reminderTime}>{app.specialty} at {app.time}</Text>
+                                                    <Text style={{ fontSize: 11, color: '#6B8BAE', marginTop: 4, fontWeight: '600' }}>
+                                                        Token: {app.token_id || 'N/A'} • Pat ID: {app.patient_id || 'N/A'} • Doc: {app.doctor_id || 'N/A'}
+                                                    </Text>
+                                                </View>
+                                                <Text style={styles.statusDone}>Completed</Text>
+                                            </View>
+                                            {index < completedAppointments.length - 1 && <View style={styles.divider} />}
+                                        </React.Fragment>
+                                    ))}
+                                </View>
+                            </Animated.View>
+                        )
+                    }
+
+                </ScrollView>
+
+                {/* ── Bottom Navigation Bar ── */}
+                < View style={styles.bottomNav} >
+                    <TouchableOpacity style={styles.navItem} activeOpacity={1}>
+                        <MaterialIcons name="home" size={26} color="#3D8EFF" />
+                        <Text style={styles.navTextActive}>Home</Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.fabContainer} pointerEvents="box-none">
+                        <TouchableOpacity
+                            style={styles.fabButton}
+                            activeOpacity={0.9}
+                            onPress={() => setScanModalVisible(true)}
+                        >
+                            <MaterialIcons name="document-scanner" size={32} color="#FFFFFF" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <TouchableOpacity
+                        style={styles.navItem}
+                        activeOpacity={0.7}
+                        onPress={() => setSidebarOpen(true)}
+                    >
+                        <MaterialIcons name="person" size={26} color="#475569" />
+                        <Text style={styles.navText}>Menu</Text>
+                    </TouchableOpacity>
+                </View >
+
+                {/* ── QR Modal ── */}
+                <Modal
+                    visible={qrModalVisible}
+                    animationType="fade"
+                    transparent={true}
+                    onRequestClose={() => setQrModalVisible(false)}
+                >
+                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+                        <TouchableOpacity
+                            style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}
+                            activeOpacity={1}
+                            onPress={() => setQrModalVisible(false)}
+                        />
+                        <View style={{ backgroundColor: '#1E293B', borderRadius: 32, padding: 32, width: '100%', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10 }}>
+                            <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginBottom: 8 }}>My Profile Token</Text>
+                            <Text style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center', marginBottom: 24 }}>Scan this QR code at any clinic to quickly share your health details.</Text>
+
+                            <View style={{ backgroundColor: '#FFFFFF', padding: 16, borderRadius: 24, marginBottom: 24 }}>
+                                <Image
+                                    source={{
+                                        uri: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}`
+                                    }}
+                                    style={{ width: 200, height: 200 }}
+                                    contentFit="contain"
+                                />
+                            </View>
+
+                            <TouchableOpacity
+                                style={{ backgroundColor: '#3D8EFF', paddingVertical: 16, paddingHorizontal: 32, borderRadius: 16, width: '100%', alignItems: 'center' }}
+                                activeOpacity={0.8}
+                                onPress={() => setQrModalVisible(false)}
+                            >
+                                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>Done</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </Modal>
+
+                {/* ── Scan Modal ── */}
+                <Modal
+                    visible={scanModalVisible}
+                    animationType="slide"
+                    transparent={true}
+                    onRequestClose={() => setScanModalVisible(false)}
+                >
+                    <TouchableOpacity
+                        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}
+                        activeOpacity={1}
+                        onPress={() => setScanModalVisible(false)}
+                    >
+                        <TouchableOpacity activeOpacity={1} style={styles.scanModalContent}>
+                            <View style={styles.scanModalHeader}>
+                                <Text style={styles.scanModalTitle}>Scan Medical Report</Text>
+                                <TouchableOpacity onPress={() => setScanModalVisible(false)}>
+                                    <Text style={styles.scanModalClose}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <Text style={styles.scanModalSub}>Choose how you want to upload the document.</Text>
+
+                            {isScanning ? (
+                                <View style={{ padding: 40, alignItems: 'center' }}>
+                                    <ActivityIndicator size="large" color="#38BDF8" />
+                                    <Text style={{ color: '#94A3B8', marginTop: 16, fontSize: 15 }}>Analyzing document with AI...</Text>
+                                </View>
+                            ) : scanSummary ? (
+                                <ScrollView style={{ marginTop: 24, maxHeight: 300 }}>
+                                    <Text style={{ color: '#FFFFFF', fontSize: 15, lineHeight: 24 }}>{scanSummary}</Text>
+                                </ScrollView>
+                            ) : (
+                                <View style={{ marginTop: 24, gap: 16 }}>
+                                    <TouchableOpacity style={styles.scanOptionBtn} activeOpacity={0.8} onPress={handleTakePhoto}>
+                                        <View style={[styles.scanIconBox, { backgroundColor: '#38BDF8' }]}>
+                                            <Text style={{ fontSize: 24 }}>📷</Text>
+                                        </View>
+                                        <View style={{ marginLeft: 16, flex: 1 }}>
+                                            <Text style={styles.scanOptionTitle}>Take Photo</Text>
+                                            <Text style={styles.scanOptionDesc}>Use camera to scan report</Text>
+                                        </View>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity style={styles.scanOptionBtn} activeOpacity={0.8} onPress={handleUploadBox}>
+                                        <View style={[styles.scanIconBox, { backgroundColor: '#818CF8' }]}>
+                                            <Text style={{ fontSize: 24 }}>📁</Text>
+                                        </View>
+                                        <View style={{ marginLeft: 16, flex: 1 }}>
+                                            <Text style={styles.scanOptionTitle}>Upload File</Text>
+                                            <Text style={styles.scanOptionDesc}>Choose from gallery or files</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                    </TouchableOpacity>
+                </Modal>
+            </SafeAreaView >
+
+            {/* ── Sidebar Overlay ── */}
+            {isSidebarOpen && (
+                <View style={[StyleSheet.absoluteFill, { zIndex: 999, elevation: 999 }]}>
+                    <Animated.View
+                        entering={FadeIn.duration(300)}
+                        exiting={FadeOut.duration(300)}
+                        style={styles.sidebarBackdrop}
+                    >
+                        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setSidebarOpen(false)} />
+                    </Animated.View>
+
+                    <Animated.View
+                        entering={SlideInRight.duration(300)}
+                        exiting={SlideOutRight.duration(300)}
+                        style={styles.sidebarContent}
+                    >
+                        <View style={styles.sidebarInner}>
+                            <View style={styles.sidebarProfileSec}>
+                                <Text style={styles.sidebarName}>{patientName}</Text>
+                                <Text style={{ color: '#94A3B8', marginTop: 4 }}>+91 {phone}</Text>
+                            </View>
+
+                            <View style={{ flex: 1, gap: 16 }}>
+                                <TouchableOpacity
+                                    style={styles.sidebarActionBtn}
+                                    activeOpacity={0.8}
+                                    onPress={() => {
+                                        setSidebarOpen(false);
+                                        router.push({ pathname: '/add-family' as any, params: { phone } });
+                                    }}
+                                >
+                                    <Text style={styles.sidebarActionText}>👥 Add Family Member</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.sidebarActionBtn}
+                                    activeOpacity={0.8}
+                                    onPress={() => {
+                                        setSidebarOpen(false);
+                                        setLangModalVisible(true);
+                                    }}
+                                >
+                                    <Text style={styles.sidebarActionText}>🌐 Change Language</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <TouchableOpacity
+                                style={styles.sidebarLogoutBtn}
+                                activeOpacity={0.8}
+                                onPress={() => {
+                                    setSidebarOpen(false);
+                                    Alert.alert('Logout', 'Are you sure you want to logout?', [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        { text: 'Logout', style: 'destructive', onPress: () => router.replace('/' as any) }
+                                    ]);
+                                }}
+                            >
+                                <Text style={styles.sidebarLogoutText}>🚪 Logout</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </Animated.View>
+                </View>
+            )}
+
+            {/* ── Language Modal ── */}
+            <Modal
+                visible={langModalVisible}
+                animationType="fade"
+                transparent={true}
+                onRequestClose={() => setLangModalVisible(false)}
+            >
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+                    <TouchableOpacity
+                        style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}
+                        activeOpacity={1}
+                        onPress={() => setLangModalVisible(false)}
+                    />
+                    <View style={{ backgroundColor: '#1E293B', borderRadius: 32, padding: 32, width: '100%', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10 }}>
+                        <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginBottom: 24, textAlign: 'center' }}>Select Language</Text>
+
+                        {LANGUAGES.map((lang) => (
+                            <TouchableOpacity
+                                key={lang.code}
+                                style={{
+                                    backgroundColor: selectedLang === lang.code ? '#3D8EFF' : '#334155',
+                                    paddingVertical: 16,
+                                    paddingHorizontal: 24,
+                                    borderRadius: 16,
+                                    marginBottom: 12,
+                                    flexDirection: 'row',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center'
+                                }}
+                                onPress={() => {
+                                    setSelectedLang(lang.code);
+                                    setLangModalVisible(false);
+                                }}
+                            >
+                                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{lang.label}</Text>
+                                {selectedLang === lang.code && <MaterialIcons name="check-circle" size={24} color="#FFFFFF" />}
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+            </Modal>
+        </View >
+    );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: '#0D1522' },
+    safeArea: { flex: 1 },
+    scroll: { flex: 1, marginBottom: Platform.OS === 'ios' ? 90 : 80 },
+    scrollContent: { paddingHorizontal: 20, paddingTop: 10 },
+
+    // Header
+    profileBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#1E293B',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: '#3D8EFF',
+    },
+    profileIcon: { fontSize: 20 },
+    familyBtn: {
+        backgroundColor: '#1E293B',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+    },
+    familyBtnText: {
+        color: '#F8FAFC',
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    menuBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#1E293B',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    menuIcon: { color: '#F8FAFC', fontSize: 24, fontWeight: '700' },
+    phcId: { color: '#F8FAFC', fontSize: 16, fontWeight: '700' },
+    qrBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#1E293B',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    qrIcon: { fontSize: 20 },
+
+    // Greeting
+    greetingSection: { marginBottom: 32 },
+    greetingHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        marginTop: 8
+    },
+    greetingText: { color: '#FFFFFF', fontSize: 32, fontWeight: '800', lineHeight: 40, letterSpacing: -0.5 },
+    greetingSub: { color: '#94A3B8', fontSize: 15 },
+    switchModeBtn: {
+        backgroundColor: '#1E293B',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#334155',
+    },
+    switchModeText: { color: '#3D8EFF', fontSize: 12, fontWeight: '700' },
+
+    // Grid
+    grid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 16,
+        justifyContent: 'space-between',
+        marginBottom: 36,
+    },
+    actionCard: {
+        width: '47%',
+        height: 160,
+        backgroundColor: '#1E293B',
+        borderRadius: 24,
+        padding: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#334155',
+    },
+    iconBox: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    actionImg: { width: 32, height: 32 },
+    actionText: {
+        color: '#F8FAFC',
+        fontSize: 15,
+        fontWeight: '700',
+        textAlign: 'center',
+        lineHeight: 20,
+    },
+
+    // Sections
+    section: { marginBottom: 36 },
+    sectionTitle: { color: '#F8FAFC', fontSize: 18, fontWeight: '700', marginBottom: 16 },
+
+    // Scanner
+    scannerCard: {
+        backgroundColor: '#1E293B',
+        borderRadius: 20,
+        padding: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#334155',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 5,
+    },
+    scannerIconBox: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#38BDF8',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    scannerTitle: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '800',
+    },
+    scannerDesc: {
+        color: '#94A3B8',
+        fontSize: 13,
+        marginTop: 4,
+        lineHeight: 18,
+    },
+    scannerArrowBg: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#334155',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+
+    // PHC Card
+    phcCard: { backgroundColor: '#1E293B', borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#334155' },
+    phcHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+    phcName: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
+    openBadge: { backgroundColor: '#064E3B', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+    openText: { color: '#34D399', fontSize: 11, fontWeight: '800' },
+    phcDistance: { color: '#94A3B8', fontSize: 14, marginBottom: 16 },
+    phcDetails: { marginBottom: 20, gap: 8 },
+    phcDetailItem: { color: '#E2E8F0', fontSize: 14, fontWeight: '500' },
+    bookTokenBtn: {
+        backgroundColor: '#3D8EFF',
+        paddingVertical: 16,
+        borderRadius: 16,
+        alignItems: 'center',
+    },
+    bookTokenText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+
+    // Reminders Card
+    remindersCard: { backgroundColor: '#1E293B', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#334155' },
+    reminderRow: { flexDirection: 'row', alignItems: 'center' },
+    reminderIconDone: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#064E3B',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    reminderCheck: { color: '#34D399', fontSize: 24, fontWeight: '800' },
+    reminderTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginBottom: 4 },
+    reminderTime: { color: '#94A3B8', fontSize: 13 },
+    statusDone: { color: '#34D399', fontSize: 14, fontWeight: '700' },
+
+    divider: { height: 1, backgroundColor: '#334155', marginVertical: 16 },
+
+    reminderIconUrgent: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#450A0A',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    reminderAlert: { color: '#F87171', fontSize: 28, fontWeight: '800', marginTop: 10 },
+    reminderInfo: { flex: 1 },
+    reminderUrgentText: { color: '#F87171', fontSize: 12, fontWeight: '700' },
+    startBtn: { backgroundColor: '#1E3A8A', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+    startBtnText: { color: '#60A5FA', fontSize: 14, fontWeight: '700' },
+
+    // Family Card
+    familyCard: {
+        backgroundColor: '#1E293B',
+        borderWidth: 1,
+        borderColor: '#334155',
+        borderRadius: 20,
+        padding: 16,
+        width: 140,
+        elevation: 0,
+    },
+    familyRole: { color: '#3D8EFF', fontSize: 11, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
+    familyName: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginBottom: 2 },
+    familySub: { color: '#94A3B8', fontSize: 12, fontWeight: '600', marginBottom: 12 },
+    familyTag: { backgroundColor: '#450A0A', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start' },
+    familyTagText: { color: '#FCA5A5', fontSize: 11, fontWeight: '800' },
+
+    // FAB (Scanner)
+    fabContainer: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10,
+    },
+    fabButton: {
+        width: 90,
+        height: '100%',
+        borderRadius: 32,
+        backgroundColor: '#3D8EFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#3D8EFF',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.5,
+        shadowRadius: 8,
+        elevation: 6,
+    },
+    fabIcon: {
+        fontSize: 26,
+    },
+    fabLabel: {
+        color: '#64748B',
+        fontSize: 10,
+        fontWeight: '700',
+        marginTop: 4,
+    },
+
+    // Bottom Nav
+    bottomNav: {
+        position: 'absolute',
+        bottom: Platform.OS === 'ios' ? 30 : 20,
+        alignSelf: 'center',
+        width: '85%',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 40,
+        paddingTop: 12,
+        paddingBottom: 12,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 32,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.4,
+        shadowRadius: 15,
+        elevation: 10,
+    },
+    navItem: { alignItems: 'center', gap: 4 },
+    navIconActive: { color: '#3D8EFF', fontSize: 26 },
+    navTextActive: { color: '#3D8EFF', fontSize: 11, fontWeight: '700' },
+    navIcon: { color: '#475569', fontSize: 22 },
+    navText: { color: '#475569', fontSize: 11, fontWeight: '600' },
+
+    // Sidebar
+    sidebarBackdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+    },
+    sidebarContent: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        right: 0,
+        width: 280,
+        backgroundColor: '#111A2C',
+        borderLeftWidth: 1,
+        borderColor: '#1E293B',
+        shadowColor: '#000',
+        shadowOffset: { width: 4, height: 0 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 10,
+    },
+    sidebarInner: {
+        flex: 1,
+        paddingTop: Platform.OS === 'ios' ? 60 : 40,
+        paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+        paddingHorizontal: 24,
+    },
+    sidebarProfileSec: { marginBottom: 40 },
+    sidebarName: { color: '#FFFFFF', fontSize: 22, fontWeight: '800' },
+    sidebarActionBtn: {
+        backgroundColor: '#1E293B',
+        paddingVertical: 14,
+        paddingHorizontal: 20,
+        borderRadius: 16,
+        alignItems: 'center',
+    },
+    sidebarActionText: { color: '#F8FAFC', fontSize: 15, fontWeight: '700' },
+    sidebarLogoutBtn: {
+        backgroundColor: '#FEE2E2',
+        paddingVertical: 14,
+        borderRadius: 16,
+        alignItems: 'center',
+    },
+    sidebarLogoutText: { color: '#DC2626', fontSize: 16, fontWeight: '800' },
+
+    // Scan Modal
+    scanModalContent: {
+        backgroundColor: '#1E293B',
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        padding: 24,
+        paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 10,
+    },
+    scanModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    scanModalTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800' },
+    scanModalClose: { color: '#64748B', fontSize: 24, fontWeight: '600' },
+    scanModalSub: { color: '#94A3B8', fontSize: 15, marginTop: 8 },
+    scanOptionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#111A2C',
+        padding: 16,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#334155',
+    },
+    scanIconBox: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    scanOptionTitle: { color: '#F8FAFC', fontSize: 17, fontWeight: '700' },
+    scanOptionDesc: { color: '#64748B', fontSize: 13, marginTop: 4 },
+});

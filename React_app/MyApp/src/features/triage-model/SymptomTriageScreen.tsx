@@ -71,18 +71,12 @@ export default function SymptomTriageScreen() {
 
     return (
         <ThemedView style={styles.container}>
-            <Stack.Screen options={{ title: 'Symptom Triage', headerShadowVisible: false }} />
-            <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
+            <Stack.Screen options={{ title: 'Symptom Triage', headerShadowVisible: false, headerShown: false }} />
+            <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
                     <Animated.View entering={FadeInDown.duration(600)} style={styles.header}>
-                        <View style={styles.headerTop}>
-                            <ThemedText style={styles.title}>Symptom Checker</ThemedText>
-                            {/* Hook for Sync Flow status */}
-                            <View style={[styles.syncBadge, result?.synced ? styles.syncBadgeOnline : styles.syncBadgeOffline]}>
-                                <ThemedText style={styles.syncText}>{result ? (result.synced ? 'Synced' : 'Offline Mode') : 'Ready'}</ThemedText>
-                            </View>
-                        </View>
+                        <ThemedText style={styles.title}>Symptom Checker</ThemedText>
                         <ThemedText style={styles.subtitle}>
                             Select symptoms or add your own to get a health assessment.
                         </ThemedText>
@@ -99,7 +93,6 @@ export default function SymptomTriageScreen() {
                                             style={[styles.symptomChip, isSelected && styles.symptomChipSelected]}
                                             onPress={() => toggleSymptom(symptom.id)}
                                         >
-                                            <ThemedText style={styles.symptomIcon}>{symptom.icon}</ThemedText>
                                             <ThemedText style={[styles.symptomLabel, isSelected && styles.symptomLabelSelected]}>
                                                 {symptom.label}
                                             </ThemedText>
@@ -120,6 +113,7 @@ export default function SymptomTriageScreen() {
                                     <TextInput
                                         style={styles.textInput}
                                         placeholder="Type symptom (e.g. Headache)"
+                                        placeholderTextColor="#64748B"
                                         value={customSymptom}
                                         onChangeText={setCustomSymptom}
                                         autoFocus
@@ -195,18 +189,13 @@ export default function SymptomTriageScreen() {
                                 <ThemedText style={styles.resetButtonText}>Check Other Symptoms</ThemedText>
                             </TouchableOpacity>
 
-                            <TouchableOpacity
-                                style={[styles.resetButton, { marginTop: 12, backgroundColor: '#E8F5E9' }]}
-                                onPress={() => router.replace('/')}
-                            >
-                                <ThemedText style={[styles.resetButtonText, { color: '#2E7D32' }]}>Back to Home</ThemedText>
-                            </TouchableOpacity>
+
                         </Animated.View>
                     )}
 
                     <TouchableOpacity
                         style={[styles.resetButton, { marginTop: 24 }]}
-                        onPress={() => router.replace('/')}
+                        onPress={() => router.back()}
                     >
                         <ThemedText style={styles.resetButtonText}>Back to Home</ThemedText>
                     </TouchableOpacity>
@@ -227,7 +216,7 @@ export default function SymptomTriageScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F8F9FA',
+        backgroundColor: '#0D1522',
     },
     safeArea: {
         flex: 1,
@@ -237,40 +226,19 @@ const styles = StyleSheet.create({
         flexGrow: 1,
     },
     header: {
-        marginBottom: 32,
-    },
-    headerTop: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    syncBadge: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-        backgroundColor: '#E0E0E0',
-    },
-    syncBadgeOnline: {
-        backgroundColor: '#E8F5E9',
-    },
-    syncBadgeOffline: {
-        backgroundColor: '#FFF3E0',
-    },
-    syncText: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: '#666',
-        textTransform: 'uppercase',
+        marginBottom: 24,
+        marginTop: 10,
     },
     title: {
         fontSize: 32,
         fontWeight: '800',
-        color: '#1A1A1A',
+        color: '#FFFFFF',
+        marginBottom: 8,
+        lineHeight: 40,
     },
     subtitle: {
         fontSize: 16,
-        color: '#666',
+        color: '#94A3B8',
         lineHeight: 24,
     },
     symptomsSection: {
@@ -279,84 +247,83 @@ const styles = StyleSheet.create({
     chipGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 12,
+        justifyContent: 'space-between',
         marginBottom: 24,
     },
     symptomChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FFF',
-        borderRadius: 30,
-        paddingVertical: 12,
-        paddingHorizontal: 20,
-        borderWidth: 1.5,
-        borderColor: '#E8E8E8',
-        elevation: 1,
-    },
-    symptomChipSelected: {
-        backgroundColor: '#1B5E20',
-        borderColor: '#1B5E20',
-    },
-    symptomIcon: {
-        fontSize: 18,
-        marginRight: 10,
-    },
-    symptomLabel: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#444',
-    },
-    symptomLabelSelected: {
-        color: '#FFF',
-    },
-    addButton: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: '#F0F0F0',
+        width: '48%',
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#DDD',
+        backgroundColor: '#1E293B',
+        borderRadius: 16,
+        paddingVertical: 14,
+        paddingHorizontal: 8,
+        borderWidth: 1.5,
+        borderColor: '#334155',
+        marginBottom: 12,
+    },
+    symptomChipSelected: {
+        backgroundColor: '#3D8EFF',
+        borderColor: '#3D8EFF',
+    },
+    symptomLabel: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#94A3B8',
+        textAlign: 'center',
+    },
+    symptomLabelSelected: {
+        color: '#FFFFFF',
+    },
+    addButton: {
+        width: '48%',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#1E293B',
+        borderRadius: 16,
+        paddingVertical: 10,
+        borderWidth: 1.5,
+        borderColor: '#334155',
         borderStyle: 'dashed',
+        marginBottom: 12,
     },
     addButtonIcon: {
         fontSize: 24,
-        color: '#666',
+        color: '#3D8EFF',
         fontWeight: '400',
     },
     inputRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFF',
+        backgroundColor: '#1E293B',
         borderRadius: 30,
         paddingLeft: 24,
         paddingRight: 8,
         paddingVertical: 8,
         marginBottom: 32,
         borderWidth: 1.5,
-        borderColor: '#1B5E20',
+        borderColor: '#334155',
     },
     textInput: {
         flex: 1,
         fontSize: 16,
-        color: '#333',
+        color: '#FFFFFF',
         height: 44,
     },
     addSubmitButton: {
-        backgroundColor: '#1B5E20',
+        backgroundColor: '#3D8EFF',
         paddingHorizontal: 20,
         paddingVertical: 10,
         borderRadius: 25,
         marginLeft: 8,
     },
     addSubmitText: {
-        color: '#FFF',
+        color: '#FFFFFF',
         fontWeight: '700',
         fontSize: 14,
     },
     checkButton: {
-        backgroundColor: '#2E7D32',
+        backgroundColor: '#3D8EFF',
         paddingVertical: 18,
         borderRadius: 20,
         alignItems: 'center',
@@ -364,18 +331,17 @@ const styles = StyleSheet.create({
         marginTop: 10,
     },
     checkButtonDisabled: {
-        backgroundColor: '#C8E6C9',
+        backgroundColor: '#1E293B',
     },
     checkButtonText: {
-        color: '#FFF',
+        color: '#FFFFFF',
         fontSize: 18,
         fontWeight: '800',
     },
     resultCard: {
-        backgroundColor: '#FFF',
+        backgroundColor: '#1E293B',
         padding: 30,
         borderRadius: 32,
-        elevation: 10,
     },
     resultHeader: {
         flexDirection: 'row',
@@ -389,7 +355,7 @@ const styles = StyleSheet.create({
         borderRadius: 25,
     },
     severityText: {
-        color: '#FFF',
+        color: '#FFFFFF',
         fontWeight: '800',
         fontSize: 14,
         textTransform: 'uppercase',
@@ -400,52 +366,52 @@ const styles = StyleSheet.create({
     },
     confidenceLabel: {
         fontSize: 10,
-        color: '#999',
+        color: '#94A3B8',
         textTransform: 'uppercase',
         fontWeight: '700',
     },
     confidenceValue: {
         fontSize: 16,
-        color: '#1B5E20',
+        color: '#38BDF8',
         fontWeight: '800',
     },
     resultTitle: {
         fontSize: 24,
         fontWeight: '800',
-        color: '#1A1A1A',
+        color: '#FFFFFF',
         marginBottom: 24,
     },
     recommendationBox: {
-        backgroundColor: '#F8F9FA',
+        backgroundColor: '#111A2C',
         padding: 20,
         borderRadius: 24,
         marginBottom: 20,
         borderLeftWidth: 4,
-        borderLeftColor: '#E0E0E0',
+        borderLeftColor: '#38BDF8',
     },
     recommendationTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#333',
+        color: '#E2E8F0',
         marginBottom: 10,
     },
     recommendationText: {
         fontSize: 16,
         lineHeight: 26,
-        color: '#555',
+        color: '#CBD5E1',
     },
     drugSection: {
-        backgroundColor: '#FFFDE7',
+        backgroundColor: '#111A2C',
         padding: 20,
         borderRadius: 24,
         marginBottom: 32,
         borderWidth: 1,
-        borderColor: '#FFF176',
+        borderColor: '#334155',
     },
     drugSectionTitle: {
         fontSize: 18,
         fontWeight: '800',
-        color: '#F57F17',
+        color: '#38BDF8',
         marginBottom: 12,
     },
     drugItem: {
@@ -454,27 +420,27 @@ const styles = StyleSheet.create({
     drugName: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#333',
+        color: '#F8FAFC',
     },
     drugDosage: {
         fontSize: 14,
-        color: '#666',
+        color: '#94A3B8',
     },
     drugWarning: {
         fontSize: 12,
-        color: '#D32F2F',
+        color: '#F87171',
         fontWeight: '600',
         marginTop: 2,
     },
     medicalDisclaimerText: {
         fontSize: 11,
-        color: '#666',
+        color: '#64748B',
         fontStyle: 'italic',
         marginTop: 8,
         textAlign: 'center',
     },
     phcButton: {
-        backgroundColor: '#1B5E20',
+        backgroundColor: '#3D8EFF',
         paddingVertical: 16,
         borderRadius: 16,
         alignItems: 'center',
@@ -484,18 +450,18 @@ const styles = StyleSheet.create({
         gap: 10,
     },
     phcButtonText: {
-        color: '#FFF',
+        color: '#FFFFFF',
         fontWeight: '700',
         fontSize: 16,
     },
     resetButton: {
-        backgroundColor: '#F0F0F0',
+        backgroundColor: '#1E293B',
         paddingVertical: 16,
         borderRadius: 16,
         alignItems: 'center',
     },
     resetButtonText: {
-        color: '#444',
+        color: '#3D8EFF',
         fontWeight: '700',
         fontSize: 16,
     },
@@ -507,12 +473,12 @@ const styles = StyleSheet.create({
     disclaimerTitle: {
         fontSize: 14,
         fontWeight: '800',
-        color: '#D12D2D',
+        color: '#F87171',
         marginBottom: 4,
     },
     disclaimerText: {
         fontSize: 13,
-        color: '#ADADAD',
+        color: '#64748B',
         textAlign: 'center',
         lineHeight: 20,
         paddingHorizontal: 20,

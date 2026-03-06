@@ -112,7 +112,7 @@ export default function FindPHCScreen() {
 
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor="#0D1B2E" />
+            <StatusBar barStyle="light-content" backgroundColor="#0D1522" />
             <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
 
                 {/* ── Header ── */}
@@ -212,7 +212,7 @@ export default function FindPHCScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0D1B2E' },
+    container: { flex: 1, backgroundColor: '#0D1522' },
     safeArea: { flex: 1 },
 
     header: {
@@ -230,10 +230,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         paddingBottom: 20,
         borderBottomWidth: 1,
-        borderBottomColor: '#1E3A5A',
+        borderBottomColor: '#1E293B',
     },
     title: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', marginBottom: 8 },
-    subtitle: { fontSize: 14, color: '#9BB4D0', lineHeight: 22, marginBottom: 24 },
+    subtitle: { fontSize: 14, color: '#94A3B8', lineHeight: 22, marginBottom: 24 },
 
     detectBtn: {
         flexDirection: 'row',
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 6,
     },
-    detectBtnDisabled: { backgroundColor: '#1E3A5A', shadowOpacity: 0 },
+    detectBtnDisabled: { backgroundColor: '#1E293B', shadowOpacity: 0 },
     detectBtnIcon: { fontSize: 20, marginRight: 8 },
     detectBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
     doctorsBtnText: { color: '#3D8EFF', fontSize: 16, fontWeight: '700' },
 
     statusText: {
-        color: '#9BB4D0',
+        color: '#94A3B8',
         fontSize: 13,
         textAlign: 'center',
         marginTop: 12,
@@ -278,12 +278,12 @@ const styles = StyleSheet.create({
     listContent: { paddingHorizontal: 20, paddingTop: 20 },
 
     card: {
-        backgroundColor: '#132236',
+        backgroundColor: '#1E293B',
         borderRadius: 20,
         padding: 20,
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: '#1E3A5A',
+        borderColor: '#334155',
     },
     cardHeader: {
         flexDirection: 'row',
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
         width: 50,
         height: 50,
         borderRadius: 25,
-        backgroundColor: '#1E3A5A',
+        backgroundColor: '#0D1522',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 16,
@@ -302,10 +302,10 @@ const styles = StyleSheet.create({
     cardIcon: { fontSize: 24 },
     cardInfo: { flex: 1 },
     cardTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginBottom: 4 },
-    cardAddress: { color: '#9BB4D0', fontSize: 13, lineHeight: 18 },
+    cardAddress: { color: '#94A3B8', fontSize: 13, lineHeight: 18 },
 
     mapBtn: {
-        backgroundColor: '#1E3A5A',
+        backgroundColor: '#334155',
         borderRadius: 12,
         paddingVertical: 12,
         alignItems: 'center',

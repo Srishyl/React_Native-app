@@ -31,6 +31,8 @@ export default function NormalDashboard() {
     const [scanModalVisible, setScanModalVisible] = React.useState(false);
     const [isScanning, setIsScanning] = React.useState(false);
     const [scanSummary, setScanSummary] = React.useState<string | null>(null);
+    const [qrModalVisible, setQrModalVisible] = React.useState(false);
+    const [qrData, setQrData] = React.useState<string>('');
 
     useFocusEffect(
         React.useCallback(() => {
@@ -61,29 +63,46 @@ export default function NormalDashboard() {
                     }
 
                     // Fetch pending AND completed appointments
+                    let localApps: any = [];
+                    let localCompleted: any = [];
+                    let localFamily: any = [];
                     try {
-                        const apps: any = await db.getAllAsync(
+                        localApps = await db.getAllAsync(
                             "SELECT * FROM appointments WHERE patient_phone = ? AND status = 'pending' ORDER BY id DESC",
                             [activePhone]
                         );
-                        setAppointments(apps || []);
+                        setAppointments(localApps || []);
 
-                        const completedApps: any = await db.getAllAsync(
+                        localCompleted = await db.getAllAsync(
                             "SELECT * FROM appointments WHERE patient_phone = ? AND status = 'done' ORDER BY id DESC LIMIT 5",
                             [activePhone]
                         );
-                        setCompletedAppointments(completedApps || []);
+                        setCompletedAppointments(localCompleted || []);
 
                         // Fetch Family Members
-                        const familyData: any = await db.getAllAsync(
+                        localFamily = await db.getAllAsync(
                             "SELECT * FROM family_members WHERE patient_phone = ? ORDER BY id DESC",
                             [activePhone]
                         );
-                        setFamilyMembers(familyData || []);
+                        setFamilyMembers(localFamily || []);
                     } catch (e) {
                         setAppointments([]);
                         setCompletedAppointments([]);
                         setFamilyMembers([]);
+                    }
+
+                    // Ensure the generated QR data is saved to DB
+                    const currentQrData = JSON.stringify({
+                        profile: { name: row?.full_name?.split(' ')[0] || 'Patient', phone: activePhone },
+                        records: { appointments: (localApps || []).length, completed: (localCompleted || []).length },
+                        familyCount: (localFamily || []).length
+                    });
+                    setQrData(currentQrData);
+
+                    try {
+                        await db.runAsync('UPDATE patient_profiles SET qr_code_data = ? WHERE phone = ?', [currentQrData, activePhone]);
+                    } catch (e) {
+                        console.log('Failed to save QR info to DB', e);
                     }
 
                 } catch (err) {
@@ -419,6 +438,44 @@ export default function NormalDashboard() {
                         <Text style={styles.navText}>Menu</Text>
                     </TouchableOpacity>
                 </View >
+
+                {/* ── QR Modal ── */}
+                <Modal
+                    visible={qrModalVisible}
+                    animationType="fade"
+                    transparent={true}
+                    onRequestClose={() => setQrModalVisible(false)}
+                >
+                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+                        <TouchableOpacity
+                            style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}
+                            activeOpacity={1}
+                            onPress={() => setQrModalVisible(false)}
+                        />
+                        <View style={{ backgroundColor: '#1E293B', borderRadius: 32, padding: 32, width: '100%', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10 }}>
+                            <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginBottom: 8 }}>My Profile Token</Text>
+                            <Text style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center', marginBottom: 24 }}>Scan this QR code at any clinic to quickly share your health details.</Text>
+
+                            <View style={{ backgroundColor: '#FFFFFF', padding: 16, borderRadius: 24, marginBottom: 24 }}>
+                                <Image
+                                    source={{
+                                        uri: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}`
+                                    }}
+                                    style={{ width: 200, height: 200 }}
+                                    contentFit="contain"
+                                />
+                            </View>
+
+                            <TouchableOpacity
+                                style={{ backgroundColor: '#3D8EFF', paddingVertical: 16, paddingHorizontal: 32, borderRadius: 16, width: '100%', alignItems: 'center' }}
+                                activeOpacity={0.8}
+                                onPress={() => setQrModalVisible(false)}
+                            >
+                                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>Done</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </Modal>
 
                 {/* ── Scan Modal ── */}
                 <Modal
